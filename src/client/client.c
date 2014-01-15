@@ -95,14 +95,15 @@ int client_get (struct client *client, const struct url *url)
 	}
 
 	// response	
-	const char *version, *status, *reason;
+	const char *version, *reason;
+	unsigned status;
 
 	if ((err = http_client_response_start(client->http, &version, &status, &reason))) {
 		log_error("error reading response line");
 		return err;
 	}
 	
-	log_info("GET http://%s/%s -> %s %s", sockpeer_str(client->sock), url->path, status, reason);
+	log_info("GET http://%s/%s -> %u %s", sockpeer_str(client->sock), url->path, status, reason);
 
 	const char *header, *value;
 	
