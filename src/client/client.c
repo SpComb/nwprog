@@ -81,6 +81,15 @@ int client_get (struct client *client, const struct url *url)
 	
 	log_info("%s %s /%s -> %s %s", sockpeer_str(client->sock), "GET", url->path, status, reason);
 
+	const char *header, *value;
+
+	while (!(err = http_client_response_header(client->http, &header, &value))) {
+		log_info("\t%s='%s'", header, value);
+	}
+
+	if (err < 0)
+		return err;
+
 	return 0;
 }
 
