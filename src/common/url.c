@@ -62,6 +62,8 @@ int url_parse (struct url *url, char *buf)
         { PORT,         0,          PORT,       &url->port          },
 
         { PATH,         0,          PATH,       &url->path          },
+
+        { }
     }; 
     int state;
 
