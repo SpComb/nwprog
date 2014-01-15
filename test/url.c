@@ -7,20 +7,20 @@
 int test_url (const char *str) {
 	struct url url = { };
 	char buf[1024];
-	char *err;
 	
 	if (strlen(str) < sizeof(buf)) {
 		strcpy(buf, str);
 	} else {
-		log_msg("url is too long: %d", strlen(str));
+		log_error("url is too long: %d", strlen(str));
+        return 1;
 	}
 
-	if (url_parse(&url, buf, &err)) {
-		log_msg("failed to parse url @ %s", err);
+	if (url_parse(&url, buf)) {
+		log_error("failed to parse url");
 		return 1;
 	}
 
-	log_msg("%s: scheme=%s, host=%s, port=%s, path=%s", str, url.scheme, url.host, url.port, url.path);
+	log_info("%s: scheme=%s, host=%s, port=%s, path=%s", str, url.scheme, url.host, url.port, url.path);
 
 	url_dump(&url, stdout);
 	printf("\n");

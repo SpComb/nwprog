@@ -10,12 +10,29 @@ struct url {
 
 	/* URL path *without* leading / */
 	const char *path;
+
+	/* Pointer to error in URL */
+	const char *err;
 };
+
+/* Maximum supported url length */
+#define URL_MAX 1024
+
+struct urlbuf {
+	char buf[URL_MAX];
+
+	struct url url;
+};
+
+/*
+ * Parse given url string, using given buffer, into an url struct.
+ */
+int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string);
 
 /*
  * Parse given url string (in-place) into an url struct.
  */
-int url_parse (struct url *url, char *url_string, char **errp);
+int url_parse (struct url *url, char *url_string);
 
 /*
  * Write out URL to stream.

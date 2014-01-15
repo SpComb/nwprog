@@ -1,10 +1,31 @@
 #include "url.h"
 #include "log.h"
 
-#include <strings.h>
 #include <stdbool.h>
+#include <string.h>
+#include <strings.h>
 
-int url_parse (struct url *url, char *url_string, char **errp)
+int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
+{
+	if (strlen(url_string) > sizeof(urlbuf->buf)) {
+		log_error("url is too long: %d", strlen(url_string));
+		return 1;
+	}
+
+	strncpy(urlbuf->buf, url_string, sizeof(urlbuf->buf));
+	urlbuf->buf[sizeof(urlbuf->buf) - 1] = '\0';
+
+	log_debug("parse: %s", urlbuf->buf);
+
+	if (url_parse(&urlbuf->url, urlbuf->buf)) {
+		log_error("invalid url: %s", url_string);
+		return 1;
+	}
+
+    return 0;
+}
+
+int url_parse (struct url *url, char *url_string)
 {
 	char *token = url_string, *c = url_string;
 	enum {
@@ -80,7 +101,7 @@ int url_parse (struct url *url, char *url_string, char **errp)
 		}
 
 		if (err) {
-			log_msg("error parsing %d:%s @ %s", state, token, c);
+			log_warning("error parsing %d:%s @ %s", state, token, c);
 			return err;
 		}
 		
@@ -88,7 +109,7 @@ int url_parse (struct url *url, char *url_string, char **errp)
 			// end current token
 			*c++ = '\0';
 			
-			log_msg("%d <- %d:%s", state, prev_state, token);
+			log_debug("%d <- %d:%s", state, prev_state, token);
 			
 			// begin next token
 			token = c;
@@ -112,11 +133,11 @@ int url_parse (struct url *url, char *url_string, char **errp)
 		url->path = token;
 
 	} else {
-		log_msg("unexpected end %d:%s", state, token);
+		log_warning("unexpected end %d:%s", state, token);
 		return 1;
 	}
 
-	log_msg("     %d:%s", state, token);
+	log_debug("     %d:%s", state, token);
 
 	return 0;
 }
