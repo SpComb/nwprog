@@ -180,11 +180,11 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 	struct parse parsing[] = {
 		{ START,		' ',	FOLD_VALUE	},
 		{ START,		'\t',	FOLD_VALUE	},
-		{ START,		-1,		HEADER,		.flags = PARSE_KEEP	},
+		{ START,		-1,		HEADER,		PARSE_KEEP		},
 
-		{ HEADER,		' ',	SEP,		headerp		},
-		{ HEADER,		'\t',	SEP,		headerp		},
-		{ HEADER,		':',	SEP_POST,	headerp		},
+		{ HEADER,		' ',	SEP,		PARSE_STRING,	.parse_string = headerp		},
+		{ HEADER,		'\t',	SEP,		PARSE_STRING,	.parse_string = headerp		},
+		{ HEADER,		':',	SEP_POST,	PARSE_STRING,	.parse_string = headerp		},
 		
 		{ SEP,			' ',	SEP			},
 		{ SEP,			'\t',	SEP			},
@@ -192,13 +192,13 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 
 		{ SEP_POST,		' ',	SEP_POST	},
 		{ SEP_POST,		'\t',	SEP_POST	},
-		{ SEP_POST,		-1,		VALUE,		.flags = PARSE_KEEP },
+		{ SEP_POST,		-1,		VALUE,		PARSE_KEEP 		},
 		
-		{ VALUE,		0,		END,		valuep		},
+		{ VALUE,		0,		END,		PARSE_STRING,	.parse_string = valuep		},
 		
 		/*For folded headers, we leave headerp as-is. */
 		{ FOLD_VALUE,	' ',	FOLD_VALUE	},
-		{ FOLD_VALUE,	0,		END,		valuep		},
+		{ FOLD_VALUE,	0,		END,		PARSE_STRING,	.parse_string = valuep		},
 
 		{ }
 	};
@@ -264,7 +264,28 @@ int http_client_request_end (struct http *http)
 	return http_write_line(http, "");
 }
 
-int http_client_response_start (struct http *http, const char **versionp, const char **statusp, const char **reasonp)
+int http_parse_response (char *line, const char **versionp, unsigned *statusp, const char **reasonp)
+{
+	enum state { START, VERSION, STATUS, REASON, END };
+	struct parse parsing[] = {
+		{ START, 	' ', 	-1			},
+		{ START,	-1,		VERSION,	PARSE_KEEP 		},
+
+		{ VERSION,	' ',	STATUS,		PARSE_STRING,	.parse_string = versionp	},
+		{ STATUS,	' ', 	REASON,		PARSE_UINT,		.parse_uint	= statusp		},
+		{ REASON,	'\0',	END,		PARSE_STRING,	.parse_string = reasonp		},
+		{ }
+	};
+	int err;
+
+	// parse
+	if ((err = parse(parsing, line, START)) != END)
+		return -1;
+
+	return 0;
+}
+
+int http_client_response_start (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp)
 {
 	char *line;
 	int err;
@@ -272,22 +293,7 @@ int http_client_response_start (struct http *http, const char **versionp, const 
 	if ((err = http_read_line(http, &line)))
 		return err;
 	
-	enum state { START, VERSION, STATUS, REASON, END };
-	struct parse parsing[] = {
-		{ START, 	' ', 	-1			},
-		{ START,	-1,		VERSION,	.flags = PARSE_KEEP },
-
-		{ VERSION,	' ',	STATUS,		versionp	},
-		{ STATUS,	' ', 	REASON,		statusp		},
-		{ REASON,	'\0',	END,		reasonp		},
-		{ }
-	};
-
-	// parse
-	if ((err = parse(parsing, line, START)) != END)
-		return -1;
-
-	return 0;
+	return http_parse_response(line, versionp, statusp, reasonp);
 }
 
 int http_client_response_header (struct http *http, const char **headerp, const char **valuep)

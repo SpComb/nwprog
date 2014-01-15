@@ -23,7 +23,7 @@ int http_client_request_end (struct http *http);
 /*
  * Read a HTTP response.
  */
-int http_client_response_start (struct http *http, const char **versionp, const char **statusp, const char **reasonp);
+int http_client_response_start (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp);
 
 /*
  * Read next header as {*headerp}: {*valuep}.

@@ -42,26 +42,26 @@ int url_parse (struct url *url, char *buf)
 
 	};
     struct parse parsing[] = {
-        { START,        ':',        SCHEME,     &url->scheme        },
+        { START,        ':',        SCHEME,     PARSE_STRING,   .parse_string = &url->scheme        },
         { START,        '/',        START_SEP   },
-        { START,        0,          PATH,       &url->path          },
+        { START,        0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
 
         { START_SEP,    '/',        HOST        },
-        { START_SEP,    0,          PATH,       &url->path          },
+        { START_SEP,    0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
 
         { SCHEME,       '/',        SCHEME_SEP  },
-        { SCHEME,       -1,         -1,         &url->path          },
+        { SCHEME,       -1,         -1,         PARSE_STRING,   .parse_string = &url->path          },
 
         { SCHEME_SEP,   '/',        HOST        },
         
-        { HOST,         ':',        PORT,       &url->host          },
-        { HOST,         '/',        PATH,       &url->host          },
-        { HOST,         0,          HOST,       &url->host          },
+        { HOST,         ':',        PORT,       PARSE_STRING,   .parse_string = &url->host          },
+        { HOST,         '/',        PATH,       PARSE_STRING,   .parse_string = &url->host          },
+        { HOST,         0,          HOST,       PARSE_STRING,   .parse_string = &url->host          },
 
-        { PORT,         '/',        PATH,       &url->port          },
-        { PORT,         0,          PORT,       &url->port          },
+        { PORT,         '/',        PATH,       PARSE_STRING,   .parse_string = &url->port          },
+        { PORT,         0,          PORT,       PARSE_STRING,   .parse_string = &url->port          },
 
-        { PATH,         0,          PATH,       &url->path          },
+        { PATH,         0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
 
         { }
     }; 

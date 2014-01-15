@@ -2,6 +2,7 @@
 
 #include "common/log.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 /* Lookup parse state for given state/char */
@@ -9,7 +10,7 @@ const struct parse * parse_step (const struct parse *parsing, int state, char c)
 {
 	const struct parse *p;
 
-	for (p = parsing; p->state || p->c || p->next_state || p->dest; p++) {
+	for (p = parsing; p->state || p->c || p->next_state; p++) {
 		if (p->state == state && p->c == c) {
 			return p;
 		}
@@ -23,20 +24,56 @@ const struct parse * parse_step (const struct parse *parsing, int state, char c)
 	return NULL;
 }
 
+/* Write out a parsed token */
+int parse_store (const struct parse *parse, char *token)
+{
+	switch (parse->type) {
+		case PARSE_STRING:
+			*parse->parse_string = token;
+
+			return 0;
+		
+		case PARSE_INT:
+			if (sscanf(token, "%d", parse->parse_int) != 1) {
+				log_warning("invalid int token: %s", token);
+				return -1;
+			}
+
+			return 0;
+		
+		case PARSE_UINT:
+			if (sscanf(token, "%u", parse->parse_int) != 1) {
+				log_warning("invalid int token: %s", token);
+				return -1;
+			}
+
+			return 0;
+	
+		case PARSE_NONE:
+			return 0;
+
+		default:
+			// not used
+			return 0;
+	}
+}
+
 int parse (const struct parse *parsing, char *str, int state)
 {
 	char *c = str, *token = str;
 	const struct parse *p;
+	int err;
 	
 	do {
 		if ((p = parse_step(parsing, state, *c))) {
-			if (p->dest) {
+			if (p->type) {
 				// end current token
 				*c++ = '\0';
 
 				log_debug("%d <- %d = %s", p->next_state, state, token);
-
-				*p->dest = token;
+				
+				if ((err = parse_store(p, token)))
+					return err;
 
 			} else {
 				// skip char
@@ -48,7 +85,7 @@ int parse (const struct parse *parsing, char *str, int state)
 			// begin next token
 			state = p->next_state;
 			
-			if (!(p->flags & PARSE_KEEP)) {
+			if (p->type != PARSE_KEEP) {
 				token = c;
 			}
 
@@ -60,12 +97,12 @@ int parse (const struct parse *parsing, char *str, int state)
 
 	// terminate
 	if ((p = parse_step(parsing, state, *c))) {
-		log_debug("%d <- %d:%s", p->next_state, state, token);
+		log_debug("%d <- %d = %s", p->next_state, state, token);
 
 		state = p->next_state;
 
-		if (p->dest)
-			*p->dest = token;
+		if ((err = parse_store(p, token)))
+			return err;
 	}
 
 	return state;

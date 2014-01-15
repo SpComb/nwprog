@@ -114,6 +114,8 @@ int main (int argc, char **argv)
 {
 	const char *arg;
     int err;
+
+	log_set_level(LOG_INFO);
 	
 	// skip argv0
 	argv++;

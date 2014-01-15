@@ -5,7 +5,26 @@
 #include <stdio.h>
 #include <string.h>
 
-int test_arg (const char *str)
+int test_response (const char *str)
+{
+    char buf[1024];
+
+	strncpy(buf, str, sizeof(buf));
+
+	// parse
+	const char *version, *reason;
+	unsigned status;
+
+	if (http_parse_response(buf, &version, &status, &reason)) {
+		log_error("[ERROR] '%s'", str);
+	}
+
+	log_info("[OK] '%s': version=%s status=%u reason=%s", str, version, status, reason);
+
+	return 0;
+}
+
+int test_header (const char *str)
 {
     char buf[1024];
 
@@ -27,13 +46,18 @@ int main (int argc, char **argv)
 {
 	const char *arg;
     int err = 0;
+
+	log_set_level(LOG_INFO);
 	
 	// skip argv0
 	argv++;
 
-	// from args
+	// first arg is response line
+	err |= test_response(*argv++);
+
+	// next lines are headers
 	while ((arg = *argv++)) {
-		err |= test_arg(arg);
+		err |= test_header(arg);
 	}
 
 	return err;

@@ -12,7 +12,11 @@ OBJ_COMMON = $(SRC_COMMON:%.c=build/%.o)
 TEST_DIRS = $(filter %/,$(wildcard test/*/))
 TEST_SRCS = $(wildcard test/*/*.c)
 
-all: dirs
+all: dirs bin/client bin/test-url bin/test-http
+
+test:
+	bin/test-url
+	bin/test-http 'HTTP/1.1 200 OK' 'Host: foo'
 
 bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
 bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
@@ -36,4 +40,4 @@ build/%.o: %.c
 clean:
 	rm -rf core build/*/*/* bin/*
 
-.PHONY: dirs clean
+.PHONY: dirs clean test
