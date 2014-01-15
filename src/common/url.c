@@ -1,5 +1,6 @@
-#include "url.h"
-#include "log.h"
+#include "common/url.h"
+
+#include "common/log.h"
 
 #include <stdbool.h>
 #include <string.h>

@@ -3,6 +3,7 @@
 #include "common/log.h"
 #include "common/http.h"
 #include "common/tcp.h"
+#include "common/sock.h"
 
 #include <stdlib.h>
 
@@ -62,14 +63,23 @@ int client_get (struct client *client, const struct url *url)
 {
 	int err;
 
-	if ((err = http_request_start_path(client->http, "GET", "/%s", url->path)))
+	// request
+	if ((err = http_client_request_start_path(client->http, "GET", "/%s", url->path)))
 		return err;
 
-	if ((err = http_request_header(client->http, "Host", url->host)))
+	if ((err = http_client_request_header(client->http, "Host", url->host)))
 		return err;
 
-	if ((err = http_request_end(client->http)))
+	if ((err = http_client_request_end(client->http)))
 		return err;
+
+	// response	
+	const char *version, *status, *reason;
+
+	if ((err = http_client_response_start(client->http, &version, &status, &reason)))
+		return err;
+	
+	log_info("%s %s /%s -> %s %s", sockpeer_str(client->sock), "GET", url->path, status, reason);
 
 	return 0;
 }
