@@ -26,7 +26,7 @@ void _log (const char *prefix, enum log_level level, int flags, const char *fmt,
 	if (level > _log_level)
 		return;
 
-	fprintf(stderr, "%-8s %20s: ", log_level_str(level), prefix);
+	fprintf(stderr, "%-8s %30s: ", log_level_str(level), prefix);
 
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);

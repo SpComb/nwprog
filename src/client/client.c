@@ -59,17 +59,32 @@ int client_open (struct client *client, const struct url *url)
 	return 0;
 }
 
+int client_request_headers (struct client *client, const struct url *url)
+{
+	log_info("\t%20s: %s", "Host", url->path);
+	return http_client_request_header(client->http, "Host", url->host);
+}
+
+int client_response_header (struct client *client, const char *header, const char *value)
+{
+	log_info("\t%20s: %s", header, value);
+
+	return 0;
+}
+
 int client_get (struct client *client, const struct url *url)
 {
 	int err;
 
 	// request
+	log_info("GET http://%s/%s", sockpeer_str(client->sock), url->path);
+
 	if ((err = http_client_request_start_path(client->http, "GET", "/%s", url->path))) {
 		log_error("error sending request line");
 		return err;
 	}
 
-	if ((err = http_client_request_header(client->http, "Host", url->host))) {
+	if ((err = client_request_headers(client, url))) {
 		log_error("error sending request headers");
 		return err;
 	}
@@ -93,7 +108,8 @@ int client_get (struct client *client, const struct url *url)
 	
 	// *header is preserved for folded header lines... so they appear as duplicate headers
 	while (!(err = http_client_response_header(client->http, &header, &value))) {
-		log_info("\t%20s: %s", header, value);
+		if ((err = client_response_header(client, header, value)))
+			return err;
 	}
 
 	if (err < 0) {
@@ -118,8 +134,6 @@ int client_get (struct client *client, const struct url *url)
 		log_error("error reading response body");
 		return err;
 	}
-
-	log_info("End of response");
 
 	return 0;
 }

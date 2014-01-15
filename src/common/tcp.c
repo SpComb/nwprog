@@ -31,7 +31,7 @@ int tcp_connect (const char *host, const char *port)
 			continue;
 		}
 
-		log_info("connecting to %s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
+		log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
 
 		if ((err = connect(sock, addr->ai_addr, addr->ai_addrlen)) < 0) {
 			log_pwarning("connect");
@@ -40,7 +40,7 @@ int tcp_connect (const char *host, const char *port)
 			continue;
 		}
 
-		log_info("connected to %s from %s", sockpeer_str(sock), sockname_str(sock));
+		log_info("%s <- %s", sockpeer_str(sock), sockname_str(sock));
 
 		break;
 	}
