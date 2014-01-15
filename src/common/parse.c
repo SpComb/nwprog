@@ -66,7 +66,7 @@ int parse (const struct parse *parsing, char *str, int state)
 	
 	do {
 		if ((p = parse_step(parsing, state, *c))) {
-			if (p->type) {
+			if (p->type && p->type != PARSE_KEEP) {
 				// end current token
 				*c++ = '\0';
 
