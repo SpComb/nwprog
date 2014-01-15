@@ -1,6 +1,8 @@
 #ifndef HTTP_H
 #define HTTP_H
 
+#include <stddef.h>
+
 struct http;
 
 #define HTTP_VERSION "HTTP/1.0"
@@ -31,5 +33,14 @@ int http_client_response_start (struct http *http, const char **versionp, const 
  * Returns 1 on end-of-headers, 0 on header, <0 on error.
  */
 int http_client_response_header (struct http *http, const char **headerp, const char **valuep);
+
+/*
+ * Read the response body.
+ *
+ * The size of the given buffer is passed in *lenp, and the number of bytes read in returned in *lenp.
+ *
+ * Returns 1 on EOF, <0 on error.
+ */
+int http_client_response_body (struct http *http, char *buf, size_t *lenp);
 
 #endif

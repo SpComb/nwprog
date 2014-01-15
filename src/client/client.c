@@ -64,31 +64,62 @@ int client_get (struct client *client, const struct url *url)
 	int err;
 
 	// request
-	if ((err = http_client_request_start_path(client->http, "GET", "/%s", url->path)))
+	if ((err = http_client_request_start_path(client->http, "GET", "/%s", url->path))) {
+		log_error("error sending request line");
 		return err;
+	}
 
-	if ((err = http_client_request_header(client->http, "Host", url->host)))
+	if ((err = http_client_request_header(client->http, "Host", url->host))) {
+		log_error("error sending request headers");
 		return err;
+	}
 
-	if ((err = http_client_request_end(client->http)))
+	if ((err = http_client_request_end(client->http))) {
+		log_error("error sending request end-of-headers");
 		return err;
+	}
 
 	// response	
 	const char *version, *status, *reason;
 
-	if ((err = http_client_response_start(client->http, &version, &status, &reason)))
+	if ((err = http_client_response_start(client->http, &version, &status, &reason))) {
+		log_error("error reading response line");
 		return err;
+	}
 	
 	log_info("%s %s /%s -> %s %s", sockpeer_str(client->sock), "GET", url->path, status, reason);
 
 	const char *header, *value;
-
+	
+	// *header is preserved for folded header lines... so they appear as duplicate headers
 	while (!(err = http_client_response_header(client->http, &header, &value))) {
 		log_info("\t%s='%s'", header, value);
 	}
 
-	if (err < 0)
+	if (err < 0) {
+		log_error("error reading response headers");
 		return err;
+	}
+
+	// body
+	char buf[512];
+	size_t len = sizeof(buf);
+	int ret;
+
+	while (!(err = http_client_response_body(client->http, buf, &len))) {
+		// copy to stdout
+		if ((ret = fwrite(buf, len, 1, stdout)) != 1) {
+			log_pwarning("fwrite");
+			return -1;
+		}
+	}
+
+	if (err < 0) {
+		log_error("error reading response body");
+		return err;
+	}
+
+	log_info("End of response");
 
 	return 0;
 }

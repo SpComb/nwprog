@@ -108,6 +108,29 @@ static int http_write_header (struct http *http, const char *header, const char 
 
 	return 0;
 }
+
+/*
+ * Read arbitrary data from the connection.
+ *
+ * Returns 0 on success, <0 on error, >0 on EOF.
+ */
+static int http_read (struct http *http, char *buf, size_t *lenp)
+{
+	size_t ret;
+
+	if ((ret = fread(buf, 1, *lenp, http->file)) > 0) {
+		*lenp = ret;
+
+		return 0;
+	} else if (feof(http->file)) {
+		return 1;
+
+	} else {
+		log_pwarning("fread");
+		return -1;
+	}
+}
+
 /*
  * Read one line from the connection, returning a pointer to the (stripped) line in **linep.
  *
@@ -263,4 +286,9 @@ int http_client_response_start (struct http *http, const char **versionp, const 
 int http_client_response_header (struct http *http, const char **headerp, const char **valuep)
 {
 	return http_read_header(http, headerp, valuep);
+}
+
+int http_client_response_body (struct http *http, char *buf, size_t *lenp)
+{
+	return http_read(http, buf, lenp);
 }
