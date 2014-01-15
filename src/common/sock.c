@@ -39,7 +39,7 @@ const char * sockname_str (int sock)
 	static char buf[SOCKADDR_MAX];
 
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof(addr);
 
 	if (getsockname(sock, (struct sockaddr *) &addr, &addrlen)) {
 		log_pwarning("getsockname(%d)", sock);
@@ -58,7 +58,7 @@ const char * sockpeer_str (int sock)
 	static char buf[SOCKADDR_MAX];
 
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof(addr);
 
 	if (getpeername(sock, (struct sockaddr *) &addr, &addrlen)) {
 		log_pwarning("getpeername(%d)", sock);
