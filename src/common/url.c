@@ -13,7 +13,7 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
 
 	if (strlen(url_string) > sizeof(urlbuf->buf)) {
 		log_error("url is too long: %d", strlen(url_string));
-		return 1;
+		return -1;
 	}
 
 	strncpy(urlbuf->buf, url_string, sizeof(urlbuf->buf));
@@ -22,7 +22,7 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
 	log_debug("parse: %s", urlbuf->buf);
 
 	if (url_parse(&urlbuf->url, urlbuf->buf)) {
-		log_error("invalid url: %s", url_string);
+		log_warning("invalid url: %s", url_string);
 		return 1;
 	}
 
