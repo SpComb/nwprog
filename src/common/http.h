@@ -23,4 +23,13 @@ int http_client_request_end (struct http *http);
  */
 int http_client_response_start (struct http *http, const char **versionp, const char **statusp, const char **reasonp);
 
+/*
+ * Read next header as {*headerp}: {*valuep}.
+ *
+ * In case of a folded header, *headerp is left as-is.
+ *
+ * Returns 1 on end-of-headers, 0 on header, <0 on error.
+ */
+int http_client_response_header (struct http *http, const char **headerp, const char **valuep);
+
 #endif

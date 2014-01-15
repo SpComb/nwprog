@@ -117,6 +117,8 @@ static int http_write_header (struct http *http, const char *header, const char 
  */
 static int http_read_line (struct http *http, char **linep)
 {
+	char *c;
+
 	if (!fgets(http->buf, sizeof(http->buf), http->file)) {
 		// EOF?
 		if (feof(http->file))
@@ -126,14 +128,76 @@ static int http_read_line (struct http *http, char **linep)
 		return -1;
 	}
 	
-	if (http->buf[strlen(http->buf) - 1] != '\n') {
+	// rstrip \r\n
+	c = &http->buf[strlen(http->buf)];
+
+	if (*--c != '\n') {
 		log_warning("truncated line");
 		return -1;
 	}
 
+	if (*--c != '\r') {
+		log_warning("truncated line");
+		return -1;
+	}
+
+	*c = '\0';
 	*linep = http->buf;
 
 	return 0;
+}
+
+int http_parse_header (char *line, const char **headerp, const char **valuep)
+{
+	enum state { START, HEADER, SEP_PRE, SEP, SEP_POST, VALUE, END, FOLD_VALUE };
+	struct parse parsing[] = {
+		{ START,		' ',	FOLD_VALUE	},
+		{ START,		'\t',	FOLD_VALUE	},
+		{ START,		-1,		HEADER,		.flags = PARSE_KEEP	},
+
+		{ HEADER,		' ',	SEP,		headerp		},
+		{ HEADER,		'\t',	SEP,		headerp		},
+		{ HEADER,		':',	SEP_POST,	headerp		},
+		
+		{ SEP,			' ',	SEP			},
+		{ SEP,			'\t',	SEP			},
+		{ SEP,			':',	SEP_POST	},
+
+		{ SEP_POST,		' ',	SEP_POST	},
+		{ SEP_POST,		'\t',	SEP_POST	},
+		{ SEP_POST,		-1,		VALUE,		.flags = PARSE_KEEP },
+		
+		{ VALUE,		0,		END,		valuep		},
+		
+		/*For folded headers, we leave headerp as-is. */
+		{ FOLD_VALUE,	' ',	FOLD_VALUE	},
+		{ FOLD_VALUE,	0,		END,		valuep		},
+
+		{ }
+	};
+	int err;
+
+	// parse
+	if ((err = parse(parsing, line, START)) != END)
+		return -1;
+
+	return 0;
+}
+
+static int http_read_header (struct http *http, const char **headerp, const char **valuep)
+{
+	char *line;
+	int err;
+
+	if ((err = http_read_line(http, &line)))
+		return err;
+	
+	if (!*line) {
+		log_debug("end of headers");
+		return 1;
+	}
+
+	return http_parse_header(line, headerp, valuep);
 }
 
 /* Client request writing */
@@ -194,4 +258,9 @@ int http_client_response_start (struct http *http, const char **versionp, const 
 		return -1;
 
 	return 0;
+}
+
+int http_client_response_header (struct http *http, const char **headerp, const char **valuep)
+{
+	return http_read_header(http, headerp, valuep);
 }
