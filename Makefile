@@ -3,14 +3,16 @@ CPPFLAGS = -Isrc -std=c99
 LDFLAGS = 
 LIBS = 
 
+SRC_DIRS = $(filter %/,$(wildcard src/*/))
+SRC_COMMON = $(wildcard src/common/*.c)
+OBJ_COMMON = $(SRC_COMMON:%.c=build/%.o)
+
 all: build
 
-bin/main: build/src/main.o
-
 build:
-	mkdir -p build/src 
+	mkdir -p $(SRC_DIRS:%=build/%)
 
-bin/%:
+bin/%: build/src/%.o $(OBJ_COMMON)
 	$(CC) $(LDFLAGS) $+ -o $@ $(LIBS)
 
 build/%.o: %.c
@@ -23,4 +25,4 @@ build/%.o: %.c
 clean:
 	rm -rf core build/*/*/* bin/*
 
-.PHONY: prepare clean
+.PHONY: build clean
