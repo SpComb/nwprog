@@ -7,13 +7,21 @@ SRC_DIRS = $(filter %/,$(wildcard src/*/))
 SRC_COMMON = $(wildcard src/common/*.c)
 OBJ_COMMON = $(SRC_COMMON:%.c=build/%.o)
 
-all: build
+TEST_DIRS = $(filter %/,$(wildcard test/*/))
+TEST_SRCS = $(wildcard test/*/*.c)
 
-build:
-	mkdir -p $(SRC_DIRS:%=build/%)
+all: dirs
 
-bin/%: build/src/%.o $(OBJ_COMMON)
+bin/main: build/src/main.o build/src/common/log.o
+bin/test-url: build/test/url.o build/src/common/log.o build/src/common/url.o
+
+dirs:
+	mkdir -p bin bin/test
+	mkdir -p $(SRC_DIRS:%=build/%) $(TEST_DIRS:%=build/%)
+
+bin/%:
 	$(CC) $(LDFLAGS) $+ -o $@ $(LIBS)
+
 
 build/%.o: %.c
 	$(CC) -c $(CPPFLAGS) $(CFLAGS) $*.c -o build/$*.o
@@ -25,4 +33,4 @@ build/%.o: %.c
 clean:
 	rm -rf core build/*/*/* bin/*
 
-.PHONY: build clean
+.PHONY: dirs clean
