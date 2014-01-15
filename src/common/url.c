@@ -1,6 +1,7 @@
 #include "common/url.h"
 
 #include "common/log.h"
+#include "common/parse.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -8,6 +9,8 @@
 
 int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
 {
+    bzero(urlbuf, sizeof(*urlbuf));
+
 	if (strlen(url_string) > sizeof(urlbuf->buf)) {
 		log_error("url is too long: %d", strlen(url_string));
 		return 1;
@@ -26,119 +29,47 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
     return 0;
 }
 
-int url_parse (struct url *url, char *url_string)
+int url_parse (struct url *url, char *buf)
 {
-	char *token = url_string, *c = url_string;
-	enum {
-		START,
+	enum state {
+        ERROR = -1,
+
+		START = 0,
 		START_SEP,
 		SCHEME,
 		SCHEME_SEP,
 		HOST,
 		PORT,
 		PATH,
-	} state = START, prev_state = START;
-	int err = 0;
-	
-	while (*c) {
-		prev_state = state;
 
-		switch (*c) {
-			case ':':
-				if (state == START) {
-					state = SCHEME;
-					url->scheme = token;
+	};
+    struct parse parsing[] = {
+        { START,        ':',        SCHEME,     &url->scheme        },
+        { START,        '/',        START_SEP,  NULL                },
+        { START,        0,          PATH,       &url->path          },
 
-				} else if (state == HOST) {
-					state = PORT;
-					url->host = token;
+        { START_SEP,    '/',        HOST,       NULL                },
+        { START_SEP,    0,          PATH,       &url->path          },
 
-				} else if (state == PATH) {
+        { SCHEME,       '/',        SCHEME_SEP, NULL                },
+        { SCHEME,       -1,         ERROR,      &url->path          },
 
-				} else {
-					err = 1;
-				}
+        { SCHEME_SEP,   '/',        HOST,       NULL                },
+        
+        { HOST,         ':',        PORT,       &url->host          },
+        { HOST,         '/',        PATH,       &url->host          },
+        { HOST,         0,          HOST,       &url->host          },
 
-				break;
-			
-			case '/':
-				if (state == START) {
-					state = START_SEP;
+        { PORT,         '/',        PATH,       &url->port          },
+        { PORT,         0,          PORT,       &url->port          },
 
-				} else if (state == START_SEP) {
-					state = HOST;
-					url->host = token;
+        { PATH,         0,          PATH,       &url->path          },
+    }; 
+    int state;
 
-				} else if (state == SCHEME) {
-					state = SCHEME_SEP;
-
-				} else if (state == SCHEME_SEP) {
-					state = HOST;
-				
-				} else if (state == HOST) {
-					url->host = token;
-					state = PATH;
-
-				} else if (state == PORT) {
-					url->port = token;
-					state = PATH;
-
-				} else if (state == PATH) {
-
-				} else {
-					err = 1;
-				}
-
-				break;
-
-			default:
-				if (state == SCHEME) {
-					state = PATH;
-					url->path = token;
-					
-				} else {
-
-				}
-		}
-
-		if (err) {
-			log_warning("error parsing %d:%s @ %s", state, token, c);
-			return err;
-		}
-		
-		if (state != prev_state) {
-			// end current token
-			*c++ = '\0';
-			
-			log_debug("%d <- %d:%s", state, prev_state, token);
-			
-			// begin next token
-			token = c;
-		} else {
-			c++;
-		}
-
-	} while (*c);
-
-	// terminus
-	if (state == START) {
-		url->scheme = token;
-	
-	} else if (state == START_SEP) {
-		url->path = token;
-	
-	} else if (state == HOST) {
-		url->host = token;
-
-	} else if (state == PATH) {
-		url->path = token;
-
-	} else {
-		log_warning("unexpected end %d:%s", state, token);
-		return 1;
-	}
-
-	log_debug("     %d:%s", state, token);
+    if ((state = parse(parsing, buf, START)) <= 0) {
+        return -1;
+    }
 
 	return 0;
 }

@@ -31,6 +31,8 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string);
 
 /*
  * Parse given url string (in-place) into an url struct.
+ *
+ * This does *not* NULL out url, so you can supply default values.
  */
 int url_parse (struct url *url, char *url_string);
 
