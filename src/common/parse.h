@@ -5,6 +5,11 @@
  * In-place string parsing.
  */
 
+enum parse_flags {
+	// do not \0 out char
+	PARSE_KEEP		= 0x01,
+};
+
 struct parse {
 	/* From state */
 	int state;
@@ -17,6 +22,9 @@ struct parse {
 
 	/* Store token */
 	const char **dest;
+	
+	/* PARSE_* */
+	int flags;
 };
 
 /*
