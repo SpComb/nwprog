@@ -32,8 +32,6 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
 int url_parse (struct url *url, char *buf)
 {
 	enum state {
-        ERROR = -1,
-
 		START = 0,
 		START_SEP,
 		SCHEME,
@@ -45,16 +43,16 @@ int url_parse (struct url *url, char *buf)
 	};
     struct parse parsing[] = {
         { START,        ':',        SCHEME,     &url->scheme        },
-        { START,        '/',        START_SEP,  NULL                },
+        { START,        '/',        START_SEP   },
         { START,        0,          PATH,       &url->path          },
 
-        { START_SEP,    '/',        HOST,       NULL                },
+        { START_SEP,    '/',        HOST        },
         { START_SEP,    0,          PATH,       &url->path          },
 
-        { SCHEME,       '/',        SCHEME_SEP, NULL                },
-        { SCHEME,       -1,         ERROR,      &url->path          },
+        { SCHEME,       '/',        SCHEME_SEP  },
+        { SCHEME,       -1,         -1,         &url->path          },
 
-        { SCHEME_SEP,   '/',        HOST,       NULL                },
+        { SCHEME_SEP,   '/',        HOST        },
         
         { HOST,         ':',        PORT,       &url->host          },
         { HOST,         '/',        PATH,       &url->host          },
