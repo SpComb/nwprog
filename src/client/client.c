@@ -87,13 +87,13 @@ int client_get (struct client *client, const struct url *url)
 		return err;
 	}
 	
-	log_info("%s %s /%s -> %s %s", sockpeer_str(client->sock), "GET", url->path, status, reason);
+	log_info("GET http://%s/%s -> %s %s", sockpeer_str(client->sock), url->path, status, reason);
 
 	const char *header, *value;
 	
 	// *header is preserved for folded header lines... so they appear as duplicate headers
 	while (!(err = http_client_response_header(client->http, &header, &value))) {
-		log_info("\t%s='%s'", header, value);
+		log_info("\t%20s: %s", header, value);
 	}
 
 	if (err < 0) {

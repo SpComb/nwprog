@@ -52,6 +52,8 @@ error:
  */
 static int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
+	log_debug("%s", fmt);
+
 	if (vfprintf(http->file, fmt, args) < 0)
 		return -1;
 	
@@ -74,7 +76,7 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 {
 	va_list args;
 	int err;
-
+	
 	va_start(args, fmt);
 	err = http_vwrite(http, fmt, args);
 	va_end(args);
@@ -166,6 +168,8 @@ static int http_read_line (struct http *http, char **linep)
 
 	*c = '\0';
 	*linep = http->buf;
+
+	log_debug("%s", http->buf);
 
 	return 0;
 }
@@ -268,16 +272,19 @@ int http_client_response_start (struct http *http, const char **versionp, const 
 	if ((err = http_read_line(http, &line)))
 		return err;
 	
-	enum state { START, VERSION, STATUS, REASON };
+	enum state { START, VERSION, STATUS, REASON, END };
 	struct parse parsing[] = {
-		{ START, 	' ', 	VERSION,	versionp	},
-		{ VERSION,	' ', 	STATUS,		statusp		},
-		{ STATUS,	'\0',	REASON,		reasonp		},
+		{ START, 	' ', 	-1			},
+		{ START,	-1,		VERSION,	.flags = PARSE_KEEP },
+
+		{ VERSION,	' ',	STATUS,		versionp	},
+		{ STATUS,	' ', 	REASON,		statusp		},
+		{ REASON,	'\0',	END,		reasonp		},
 		{ }
 	};
 
 	// parse
-	if ((err = parse(parsing, line, START)) != REASON)
+	if ((err = parse(parsing, line, START)) != END)
 		return -1;
 
 	return 0;
