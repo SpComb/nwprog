@@ -9,6 +9,21 @@ class Handler (BaseHTTPServer.BaseHTTPRequestHandler) :
 		self.end_headers()
 		self.wfile.write("Data\r\n")
 
+	def do_PUT (self) :
+		content_length = self.headers.get('Content-Length')
+		
+		if content_length :
+			content_length = int(content_length)
+
+		if content_length :
+			data = self.rfile.read(content_length)
+		else :
+			data = self.rfile.read()
+
+		print data
+		
+		return self.do_GET()
+
 def main (listen='localhost', port=8080) :
 	server = BaseHTTPServer.HTTPServer((listen, port), Handler)
 	server.serve_forever()
