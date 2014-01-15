@@ -14,7 +14,7 @@ TEST_SRCS = $(wildcard test/*/*.c)
 
 all: dirs
 
-bin/client: build/src/client.o build/src/client/client.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/log.o
+bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/log.o
 bin/test-url: build/test/url.o build/src/common/log.o build/src/common/url.o
 
 dirs:

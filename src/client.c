@@ -37,6 +37,11 @@ int client (const char *arg) {
 		return 3;
 	}
 
+	if (client_get(client, &urlbuf.url)) {
+		log_error("failed to GET url");
+		return 4;
+	}
+
 	return 0;
 }
 
