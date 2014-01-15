@@ -1,7 +1,9 @@
+#include "client/client.h"
+#include "common/log.h"
+#include "common/url.h"
+
 #include <getopt.h>
 #include <stdio.h>
-
-#include "common/log.h"
 
 static const struct option main_options[] = {
 	{ "help",		0, NULL,		'h' },
@@ -16,8 +18,24 @@ void help (const char *argv0) {
 	, argv0);
 }
 
-int apply (const char *arg) {
-	log_msg("%s", arg);
+int client (const char *arg) {
+	struct urlbuf urlbuf;
+	struct client *client = NULL;
+
+	if (urlbuf_parse(&urlbuf, arg)) {
+		log_error("invalid url: %s", arg);
+		return 1;
+	}
+
+	if (client_create(&client)) {
+		log_error("failed to initialize client");
+		return 2;
+	}
+	
+	if (client_open(client, &urlbuf.url)) {
+		log_error("failed to open url");
+		return 3;
+	}
 
 	return 0;
 }
@@ -39,7 +57,7 @@ int main (int argc, char **argv)
 	}
 
 	while (optind < argc && !err) {
-		err = apply(argv[optind++]);
+		err = client(argv[optind++]);
 	}
 	
 	return err;
