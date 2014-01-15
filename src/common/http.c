@@ -47,9 +47,24 @@ error:
 	return -1;
 }
 
-/*
- * Write a line to the HTTP socket.
- */
+static int http_write (struct http *http, const char *buf, size_t *lenp)
+{
+	size_t ret;
+
+	if ((ret = fwrite(buf, 1, *lenp, http->file)) > 0) {
+		*lenp = ret;
+		
+		return 0;
+
+	} else if (feof(http->file)) {
+		return 1;
+
+	} else {
+		log_pwarning("fwrite");
+		return -1;
+	}
+}
+
 static int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
 	log_debug("%s", fmt);
@@ -60,7 +75,7 @@ static int http_vwrite (struct http *http, const char *fmt, va_list args)
 	return 0;
 }
 
-static int http_write (struct http *http, const char *fmt, ...)
+static int http_writef (struct http *http, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -72,6 +87,9 @@ static int http_write (struct http *http, const char *fmt, ...)
 	return err;
 }
 
+/*
+ * Write a line to the HTTP socket.
+ */
 static int http_write_line (struct http *http, const char *fmt, ...)
 {
 	va_list args;
@@ -84,7 +102,23 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 	if (err)
 		return err;
 
-	if ((err = http_write(http, "\r\n")))
+	if ((err = http_writef(http, "\r\n")))
+		return err;
+
+	return 0;
+}
+
+static int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args)
+{
+	int err;
+	
+	if ((err = http_writef(http, "%s: ", header)))
+		return err;
+
+	if ((err = http_vwrite(http, fmt, args)))
+		return err;
+	
+	if ((err = http_writef(http, "\r\n")))
 		return err;
 
 	return 0;
@@ -95,20 +129,11 @@ static int http_write_header (struct http *http, const char *header, const char 
 	va_list args;
 	int err;
 	
-	if ((err = http_write(http, "%s: ", header)))
-		return err;
-
 	va_start(args, fmt);
-	err = http_vwrite(http, fmt, args);
+	err = http_write_headerv(http, header, fmt, args);
 	va_end(args);
-	
-	if (err)
-		return err;
 
-	if ((err = http_write(http, "\r\n")))
-		return err;
-
-	return 0;
+	return err;
 }
 
 /*
@@ -238,7 +263,7 @@ int http_client_request_start_path (struct http *http, const char *method, const
 	va_list args;
 	int err;
 
-	if ((err = http_write(http, "%s ", method)))
+	if ((err = http_writef(http, "%s ", method)))
 		return err;
 
 	va_start(args, fmt);
@@ -248,7 +273,7 @@ int http_client_request_start_path (struct http *http, const char *method, const
 	if (err)
 		return err;
 
-	if ((err = http_write(http, " %s\r\n", http->version)))
+	if ((err = http_writef(http, " %s\r\n", http->version)))
 		return err;
 
 	return 0;
@@ -259,9 +284,26 @@ int http_client_request_header (struct http *http, const char *header, const cha
 	return http_write_header(http, header, "%s", value);
 }
 
+int http_client_request_headerf (struct http *http, const char *header, const char *fmt, ...)
+{
+	va_list args;
+	int err;
+
+	va_start(args, fmt);
+	err = http_write_headerv(http, header, fmt, args);
+	va_end(args);
+
+	return err;
+}
+
 int http_client_request_end (struct http *http)
 {
 	return http_write_line(http, "");
+}
+
+int http_client_request_body (struct http *http, char *buf, size_t *lenp)
+{
+	return http_write(http, buf, lenp);
 }
 
 int http_parse_response (char *line, const char **versionp, unsigned *statusp, const char **reasonp)

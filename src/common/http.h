@@ -18,7 +18,23 @@ int http_create (struct http **httpp, int sock);
 int http_client_request_start (struct http *http, const char *method, const char *path);
 int http_client_request_start_path (struct http *http, const char *method, const char *fmt, ...);
 int http_client_request_header (struct http *http, const char *header, const char *value);
+int http_client_request_headerf (struct http *http, const char *header, const char *fmt, ...);
+
+/*
+ * End the HTTP headers.
+ *
+ * XXX: rename
+ */
 int http_client_request_end (struct http *http);
+
+/*
+ * Send a HTTP request body.
+ *
+ * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
+ *
+ * Returns 1 on EOF, <0 on error.
+ */
+int http_client_request_body (struct http *http, char *buf, size_t *lenp);
 
 /*
  * Read a HTTP response.

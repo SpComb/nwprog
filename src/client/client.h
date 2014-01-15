@@ -24,6 +24,11 @@ int client_open (struct client *client, const struct url *url);
 int client_get (struct client *client, const struct url *url);
 
 /*
+ * Perform a PUTT request for the given file and URL /path.
+ */
+int client_put (struct client *client, const struct url *url, FILE *file);
+
+/*
  * Release any resources used by the client.
  */
 void client_destroy (struct client *client);

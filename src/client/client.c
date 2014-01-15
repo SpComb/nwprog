@@ -5,6 +5,7 @@
 #include "common/tcp.h"
 #include "common/sock.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 
 struct client {
@@ -59,10 +60,53 @@ int client_open (struct client *client, const struct url *url)
 	return 0;
 }
 
-int client_request_headers (struct client *client, const struct url *url)
+int client_request_headers (struct client *client, const struct url *url, size_t content_length)
 {
+	int err = 0;
+
 	log_info("\t%20s: %s", "Host", url->path);
-	return http_client_request_header(client->http, "Host", url->host);
+	err |= http_client_request_header(client->http, "Host", url->host);
+
+	if (content_length) {
+		log_info("\t%20s: %zu", "Content-Length", content_length);
+		err |= http_client_request_headerf(client->http, "Content-length", "%zu", content_length);
+	}
+
+	return err;
+}
+
+int client_request_file (struct client *client, size_t content_length, FILE *file)
+{
+	char buf[512], *bufp;
+	size_t ret, len = sizeof(buf);
+
+	do {
+		if ((ret = fread(buf, 1, sizeof(buf), file)) < 0) {
+			log_pwarning("fread");
+			return -1;
+		}
+
+		log_debug("fread: %zu", ret);
+
+		if (!ret)
+			// EOF
+			return 0;
+
+		bufp = buf;
+		len = ret;
+		
+		while (ret) {
+			if (http_client_request_body(client->http, bufp, &len)) {
+				log_error("error writing request body");
+				return -1;
+			}
+
+			log_debug("http_client_request_body: %zu", len);
+
+			bufp += len;
+			ret -= len;
+		}
+	} while (true);
 }
 
 int client_response_header (struct client *client, const char *header, const char *value)
@@ -72,19 +116,19 @@ int client_response_header (struct client *client, const char *header, const cha
 	return 0;
 }
 
-int client_get (struct client *client, const struct url *url)
+static int client_request (struct client *client, const struct url *url, const char *method, size_t content_length, FILE *file)
 {
 	int err;
 
 	// request
-	log_info("GET http://%s/%s", sockpeer_str(client->sock), url->path);
+	log_info("%s http://%s/%s", method, sockpeer_str(client->sock), url->path);
 
-	if ((err = http_client_request_start_path(client->http, "GET", "/%s", url->path))) {
+	if ((err = http_client_request_start_path(client->http, method, "/%s", url->path))) {
 		log_error("error sending request line");
 		return err;
 	}
 
-	if ((err = client_request_headers(client, url))) {
+	if ((err = client_request_headers(client, url, content_length))) {
 		log_error("error sending request headers");
 		return err;
 	}
@@ -94,16 +138,26 @@ int client_get (struct client *client, const struct url *url)
 		return err;
 	}
 
-	// response	
+	if (file && (err = client_request_file(client, content_length, file)))
+		return err;
+
+	log_debug("end-of-request");
+
+	return 0;
+}
+
+static int client_response (struct client *client)
+{
 	const char *version, *reason;
 	unsigned status;
+	int err;
 
 	if ((err = http_client_response_start(client->http, &version, &status, &reason))) {
 		log_error("error reading response line");
 		return err;
 	}
 	
-	log_info("GET http://%s/%s -> %u %s", sockpeer_str(client->sock), url->path, status, reason);
+	log_info("%u %s", status, reason);
 
 	const char *header, *value;
 	
@@ -135,6 +189,56 @@ int client_get (struct client *client, const struct url *url)
 		log_error("error reading response body");
 		return err;
 	}
+	
+	log_debug("end-of-response");
+
+	return 0;
+}
+
+int client_get (struct client *client, const struct url *url)
+{
+	int err;
+	
+	// request
+	if ((err = client_request(client, url, "GET", 0, NULL)))
+		return err;
+
+	// response	
+	if ((err = client_response(client)))
+		return err;
+
+	return 0;
+}
+
+int client_put (struct client *client, const struct url *url, FILE *file)
+{
+	int err;
+
+	// determine the file size
+	int content_length;
+
+	if (fseek(file, 0, SEEK_END)) {
+		log_perror("given PUT file is not seekable");
+		return 1;
+	}
+
+	if ((content_length = ftell(file)) < 0) {
+		log_perror("ftell");
+		return -1;
+	}
+
+	if (fseek(file, 0, SEEK_SET)) {
+		log_perror("fseek");
+		return -1;
+	}
+	
+	// request
+	if ((err = client_request(client, url, "PUT", content_length, file)))
+		return err;
+
+	// response	
+	if ((err = client_response(client)))
+		return err;
 
 	return 0;
 }
