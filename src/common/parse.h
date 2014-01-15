@@ -9,7 +9,7 @@ struct parse {
 	/* From state */
 	int state;
 
-	/* Via char */
+	/* For char, or -1 for wildcard */
 	char c;
 
 	/* To state */

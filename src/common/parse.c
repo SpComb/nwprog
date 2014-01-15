@@ -13,6 +13,11 @@ const struct parse * parse_step (const struct parse *parsing, int state, char c)
 		if (p->state == state && p->c == c) {
 			return p;
 		}
+		
+		// wildcard
+		if (p->state == state && p->c == -1) {
+			return p;
+		}
 	}
 	
 	return NULL;
