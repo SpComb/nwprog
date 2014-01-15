@@ -1,3 +1,5 @@
+# vim : set noexpandtab :
+
 CFLAGS = -g -Wall
 CPPFLAGS = -Isrc -std=c99
 LDFLAGS = 
@@ -17,11 +19,11 @@ bin/test-url: build/test/url.o build/src/common/log.o build/src/common/url.o
 
 dirs:
 	mkdir -p bin bin/test
-	mkdir -p $(SRC_DIRS:%=build/%) $(TEST_DIRS:%=build/%)
+	mkdir -p build/src $(SRC_DIRS:%=build/%)
+	mkdir -p build/test $(TEST_DIRS:%=build/%)
 
 bin/%:
 	$(CC) $(LDFLAGS) $+ -o $@ $(LIBS)
-
 
 build/%.o: %.c
 	$(CC) -c $(CPPFLAGS) $(CFLAGS) $*.c -o build/$*.o
