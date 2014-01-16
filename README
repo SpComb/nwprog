@@ -46,20 +46,21 @@ The code has been built on the following OS/Distributions:
 ### Client
 The client has been tested with the following servers:
 
-	Apache
+#### Apache
 
-		www.ietf.org		
+`www.ietf.org`
 
-	BaseHTTP/0.3 Python/2.7.3
+#### BaseHTTP/0.3 Python/2.7.3
 		
-		See the shipped src/server.py file.
+See `doc/server.py`
 
-	nwhttpd/0.5
+#### nwhttpd/0.5
 
-		Serving on nwprog1.netlab.hut.fi
+Serving on `nwprog1.netlab.hut.fi`
 
 #### Known limitations
 *	The client does not fully support flowed HTTP headers (it will process them as duplicate headers).
+*   The client does not support `Content-Encoding: chunked`.
 *	The client does not support HTTP/1.1 (piplining).
 
 ## Design

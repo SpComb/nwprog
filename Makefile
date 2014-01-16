@@ -18,6 +18,8 @@ test: bin/test-url bin/test-http
 	bin/test-url
 	bin/test-http 'HTTP/1.1 200 OK' 'Host: foo'
 
+doc: doc/README.html
+
 bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
 bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
 bin/test-http: build/test/http.o build/src/common/http.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
@@ -36,6 +38,9 @@ build/%.o: %.c
 
 # existing .d files for rebuilding existing .o's
 -include $(wildcard build/*.d)
+
+doc/README.html: README
+	markdown $< > $@
 
 clean:
 	rm -rf core build/*/*/* bin/*
