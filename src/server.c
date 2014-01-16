@@ -100,7 +100,7 @@ error:
 int main (int argc, char **argv)
 {
 	int opt, longopt;
-	enum log_level log_level = LOG_LEVEL;
+	enum log_level log_level = LOG_WARNING;
 	int err = 0;
 	struct options options = {
 		.iam	= getlogin(),
