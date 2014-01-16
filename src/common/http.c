@@ -12,9 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Maximum line length */
-#define HTTP_LINE 1024
-
 struct http {
 	FILE *file;
 	char buf[HTTP_LINE];
@@ -47,7 +44,7 @@ int http_create (struct http **httpp, int fd)
 		goto error;
 	}
 
-	if (!(http->file = fdopen(fd, "w+"))) {
+	if (!(http->file = fdopen(fd, "a+"))) {
 		log_perror("fdopen");
 		goto error;
 	}
@@ -142,9 +139,13 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 	if ((err = http_writef(http, "\r\n")))
 		return err;
 
+	if (fflush(http->file)) {
+		log_pwarning("fflush");
+		return -1;
+	}
+
 	return 0;
 }
-
 
 /*
  * Read arbitrary data from the connection.
@@ -159,8 +160,9 @@ static int http_read (struct http *http, char *buf, size_t *lenp)
 		*lenp = ret;
 
 		return 0;
+
 	} else if (feof(http->file)) {
-		return 1;
+		return 400;
 
 	} else {
 		log_pwarning("fread");
@@ -181,8 +183,9 @@ static int http_read_line (struct http *http, char **linep)
 
 	if (!fgets(http->buf, sizeof(http->buf), http->file)) {
 		// EOF?
-		if (feof(http->file))
-			return 1;
+		if (feof(http->file)) {
+			return 400;
+		}
 
 		log_perror("fgets");
 		return -1;
@@ -241,7 +244,7 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 
 	// parse
 	if ((err = parse(parsing, line, START)) != END)
-		return -1;
+		return 400;
 
 	return 0;
 }
@@ -397,7 +400,7 @@ int http_parse_request (char *line, const char **methodp, const char **pathp, co
 
 	// parse
 	if ((err = parse(parsing, line, START)) != END)
-		return -1;
+		return 400;
 
 	return 0;
 }
@@ -418,7 +421,7 @@ int http_parse_response (char *line, const char **versionp, unsigned *statusp, c
 
 	// parse
 	if ((err = parse(parsing, line, START)) != END)
-		return -1;
+		return 400;
 
 	return 0;
 }
@@ -430,7 +433,7 @@ int http_read_request (struct http *http, const char **methodp, const char **pat
 
 	if ((err = http_read_line(http, &line)))
 		return err;
-	
+
 	return http_parse_request(line, methodp, pathp, versionp);
 }
 
@@ -450,8 +453,13 @@ int http_read_header (struct http *http, const char **headerp, const char **valu
 	char *line;
 	int err;
 
-	if ((err = http_read_line(http, &line)))
+	if ((err = http_read_line(http, &line)) < 0)
 		return err;
+
+	if (err) {
+		// XXX: interpret EOF as end-of-headers?
+		return 1;
+	}
 	
 	if (!*line) {
 		log_debug("end of headers");

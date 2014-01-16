@@ -8,6 +8,16 @@ struct http;
 
 #define HTTP_VERSION "HTTP/1.0"
 
+/* Maximum line length */
+#define HTTP_LINE 1024
+
+/* Maximum method length */
+#define HTTP_METHOD_MAX 64
+
+/* Maximum path length */
+#define HTTP_PATH_MAX 1024
+
+
 enum http_status {
 	HTTP_OK						= 200,
 	HTTP_BAD_REQUEST			= 400,
