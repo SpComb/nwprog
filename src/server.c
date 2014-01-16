@@ -1,6 +1,7 @@
 #include "server/server.h"
 #include "server/static.h"
 
+#include "common/daemon.h"
 #include "common/log.h"
 #include "common/url.h"
 
@@ -140,6 +141,8 @@ int main (int argc, char **argv)
 
 	// apply
 	log_set_level(log_level);
+
+	daemon_init();
 
 	while (optind < argc && !err) {
 		err = server(&options, argv[optind++]);

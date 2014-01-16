@@ -31,6 +31,7 @@ bin/server: build/src/server.o \
 	build/src/server/static.o \
 	build/src/common/http.o build/src/common/util.o \
 	build/src/common/url.o build/src/common/parse.o \
+	build/src/common/daemon.o \
 	build/src/common/log.o
 
 bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
