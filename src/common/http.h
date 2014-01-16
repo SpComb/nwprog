@@ -15,17 +15,17 @@ int http_create (struct http **httpp, int sock);
 /*
  * Send a HTTP request.
  */
-int http_client_request_start (struct http *http, const char *method, const char *path);
-int http_client_request_start_path (struct http *http, const char *method, const char *fmt, ...);
-int http_client_request_header (struct http *http, const char *header, const char *value);
-int http_client_request_headerf (struct http *http, const char *header, const char *fmt, ...);
+int http_write_request_start (struct http *http, const char *method, const char *path);
+int http_write_request_start_path (struct http *http, const char *method, const char *fmt, ...);
+int http_write_request_header (struct http *http, const char *header, const char *value);
+int http_write_request_headerf (struct http *http, const char *header, const char *fmt, ...);
 
 /*
  * End the HTTP headers.
  *
  * XXX: rename
  */
-int http_client_request_end (struct http *http);
+int http_write_request_end (struct http *http);
 
 /*
  * Send a HTTP request body.
@@ -34,12 +34,20 @@ int http_client_request_end (struct http *http);
  *
  * Returns 1 on EOF, <0 on error.
  */
-int http_client_request_body (struct http *http, char *buf, size_t *lenp);
+int http_write_request_body (struct http *http, char *buf, size_t *lenp);
+
+
+
+
+/*
+ * Read a HTTP request.
+ */
+int http_read_request (struct http *http, const char **methodp, const char **pathp, const char **versionp);
 
 /*
  * Read a HTTP response.
  */
-int http_client_response_start (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp);
+int http_read_response (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp);
 
 /*
  * Read next header as {*headerp}: {*valuep}.
@@ -48,16 +56,21 @@ int http_client_response_start (struct http *http, const char **versionp, unsign
  *
  * Returns 1 on end-of-headers, 0 on header, <0 on error.
  */
-int http_client_response_header (struct http *http, const char **headerp, const char **valuep);
+int http_read_header (struct http *http, const char **headerp, const char **valuep);
 
 /*
- * Read the response body.
+ * Read (part of) the response body.
  *
  * The size of the given buffer is passed in *lenp, and the number of bytes read in returned in *lenp.
  *
  * Returns 1 on EOF, <0 on error.
  */
-int http_client_response_body (struct http *http, char *buf, size_t *lenp);
+int http_read_body (struct http *http, char *buf, size_t *lenp);
+
+
+
+
+
 
 /*
  * Release all associated resources.

@@ -258,29 +258,13 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 	return 0;
 }
 
-static int http_read_header (struct http *http, const char **headerp, const char **valuep)
-{
-	char *line;
-	int err;
-
-	if ((err = http_read_line(http, &line)))
-		return err;
-	
-	if (!*line) {
-		log_debug("end of headers");
-		return 1;
-	}
-
-	return http_parse_header(line, headerp, valuep);
-}
-
 /* Client request writing */
-int http_client_request_start (struct http *http, const char *method, const char *path)
+int http_write_request_start (struct http *http, const char *method, const char *path)
 {
 	return http_write_line(http, "%s %s %s", method, path, http->version);
 }
 
-int http_client_request_start_path (struct http *http, const char *method, const char *fmt, ...)
+int http_write_request_start_path (struct http *http, const char *method, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -301,12 +285,12 @@ int http_client_request_start_path (struct http *http, const char *method, const
 	return 0;
 }
 
-int http_client_request_header (struct http *http, const char *header, const char *value)
+int http_write_request_header (struct http *http, const char *header, const char *value)
 {
 	return http_write_header(http, header, "%s", value);
 }
 
-int http_client_request_headerf (struct http *http, const char *header, const char *fmt, ...)
+int http_write_request_headerf (struct http *http, const char *header, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -318,14 +302,35 @@ int http_client_request_headerf (struct http *http, const char *header, const ch
 	return err;
 }
 
-int http_client_request_end (struct http *http)
+int http_write_request_end (struct http *http)
 {
 	return http_write_line(http, "");
 }
 
-int http_client_request_body (struct http *http, char *buf, size_t *lenp)
+int http_write_request_body (struct http *http, char *buf, size_t *lenp)
 {
 	return http_write(http, buf, lenp);
+}
+
+int http_parse_request (char *line, const char **methodp, const char **pathp, const char **versionp)
+{
+	enum state { START, METHOD, PATH, VERSION, END };
+	struct parse parsing[] = {
+		{ START, 	' ', 	-1			},
+		{ START,	-1,		METHOD,		PARSE_KEEP 		},
+
+		{ METHOD,	' ',	PATH,		PARSE_STRING,	.parse_string = methodp		},
+		{ PATH,		' ', 	VERSION,	PARSE_STRING,	.parse_string = pathp		},
+		{ VERSION,	'\0',	END,		PARSE_STRING,	.parse_string = versionp	},
+		{ }
+	};
+	int err;
+
+	// parse
+	if ((err = parse(parsing, line, START)) != END)
+		return -1;
+
+	return 0;
 }
 
 int http_parse_response (char *line, const char **versionp, unsigned *statusp, const char **reasonp)
@@ -349,7 +354,18 @@ int http_parse_response (char *line, const char **versionp, unsigned *statusp, c
 	return 0;
 }
 
-int http_client_response_start (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp)
+int http_read_request (struct http *http, const char **methodp, const char **pathp, const char **versionp)
+{
+	char *line;
+	int err;
+
+	if ((err = http_read_line(http, &line)))
+		return err;
+	
+	return http_parse_request(line, methodp, pathp, versionp);
+}
+
+int http_read_response (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp)
 {
 	char *line;
 	int err;
@@ -360,12 +376,23 @@ int http_client_response_start (struct http *http, const char **versionp, unsign
 	return http_parse_response(line, versionp, statusp, reasonp);
 }
 
-int http_client_response_header (struct http *http, const char **headerp, const char **valuep)
+int http_read_header (struct http *http, const char **headerp, const char **valuep)
 {
-	return http_read_header(http, headerp, valuep);
+	char *line;
+	int err;
+
+	if ((err = http_read_line(http, &line)))
+		return err;
+	
+	if (!*line) {
+		log_debug("end of headers");
+		return 1;
+	}
+
+	return http_parse_header(line, headerp, valuep);
 }
 
-int http_client_response_body (struct http *http, char *buf, size_t *lenp)
+int http_read_body (struct http *http, char *buf, size_t *lenp)
 {
 	return http_read(http, buf, lenp);
 }

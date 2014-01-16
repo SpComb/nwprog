@@ -139,16 +139,16 @@ int client_request_headers (struct client *client, const struct client_request *
 	int err = 0;
 
 	log_info("\t%20s: %s", "Host", request->url->host);
-	err |= http_client_request_header(client->http, "Host", request->url->host);
+	err |= http_write_request_header(client->http, "Host", request->url->host);
 
 	if (request->content_length) {
 		log_info("\t%20s: %zu", "Content-Length", request->content_length);
-		err |= http_client_request_headerf(client->http, "Content-length", "%zu", request->content_length);
+		err |= http_write_request_headerf(client->http, "Content-length", "%zu", request->content_length);
 	}
 
     TAILQ_FOREACH(header, &client->headers, client_headers) {
         log_info("\t%20s: %s", header->name, header->value);
-        err |= http_client_request_header(client->http, header->name, header->value);
+        err |= http_write_request_header(client->http, header->name, header->value);
     }
 
 	return err;
@@ -179,12 +179,12 @@ int client_request_file (struct client *client, size_t content_length, FILE *fil
 		len = ret;
 		
 		while (ret) {
-			if (http_client_request_body(client->http, bufp, &len)) {
+			if (http_write_request_body(client->http, bufp, &len)) {
 				log_error("error writing request body");
 				return -1;
 			}
 
-			log_debug("http_client_request_body: %zu", len);
+			log_debug("http_write_request_body: %zu", len);
 
 			bufp += len;
 			ret -= len;
@@ -199,7 +199,7 @@ static int client_request (struct client *client, const struct client_request *r
 	// request
 	log_info("%s http://%s/%s", request->method, sockpeer_str(client->sock), request->url->path);
 
-	if ((err = http_client_request_start_path(client->http, request->method, "/%s", request->url->path))) {
+	if ((err = http_write_request_start_path(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");
 		return err;
 	}
@@ -209,7 +209,7 @@ static int client_request (struct client *client, const struct client_request *r
 		return err;
 	}
 
-	if ((err = http_client_request_end(client->http))) {
+	if ((err = http_write_request_end(client->http))) {
 		log_error("error sending request end-of-headers");
 		return err;
 	}
@@ -260,7 +260,7 @@ static int client_response_file (struct client *client, FILE *file, size_t conte
 		if (content_length < len)
 			len = content_length;
 
-		if ((err = http_client_response_body(client->http, buf, &len)) < 0) {
+		if ((err = http_read_body(client->http, buf, &len)) < 0) {
 			log_error("error reading response body");
 			return err;
 		}
@@ -301,7 +301,7 @@ static int client_response (struct client *client, struct client_response *respo
 	const char *version;
 	int err;
 
-	if ((err = http_client_response_start(client->http, &version, &response->status, &response->reason))) {
+	if ((err = http_read_response(client->http, &version, &response->status, &response->reason))) {
 		log_error("error reading response line");
 		return err;
 	}
@@ -311,7 +311,7 @@ static int client_response (struct client *client, struct client_response *respo
 	const char *header, *value;
 	
 	// *header is preserved for folded header lines... so they appear as duplicate headers
-	while (!(err = http_client_response_header(client->http, &header, &value))) {
+	while (!(err = http_read_header(client->http, &header, &value))) {
 		if ((err = client_response_header(client, response, header, value)))
 			return err;
 	}
