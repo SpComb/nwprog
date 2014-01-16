@@ -18,9 +18,9 @@ test:
 	bin/test-url
 	bin/test-http 'HTTP/1.1 200 OK' 'Host: foo'
 
-bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
+bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
 bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
-bin/test-http: build/test/http.o build/src/common/http.o build/src/common/parse.o build/src/common/log.o
+bin/test-http: build/test/http.o build/src/common/http.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
 
 dirs:
 	mkdir -p bin bin/test

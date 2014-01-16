@@ -2,6 +2,10 @@
 
 #include "common/log.h"
 #include "common/parse.h"
+#include "common/util.h"
+
+// vsnprintf with -gnu99
+#define _POSIX_C_SOURCE 200112L
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -51,27 +55,45 @@ static int http_write (struct http *http, const char *buf, size_t *lenp)
 {
 	size_t ret;
 
-	if ((ret = fwrite(buf, 1, *lenp, http->file)) > 0) {
-		*lenp = ret;
-		
-		return 0;
-
-	} else if (feof(http->file)) {
-		return 1;
-
-	} else {
+	if ((ret = fwrite(buf, 1, *lenp, http->file)) < 0) {
 		log_pwarning("fwrite");
 		return -1;
 	}
+
+	*lenp = ret;
+	
+	return 0;
 }
 
 static int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
-	log_debug("%s", fmt);
+	char buf[HTTP_LINE];
+	int ret;
 
-	if (vfprintf(http->file, fmt, args) < 0)
+	if ((ret = vsnprintf(buf, sizeof(buf), fmt, args)) < 0)
 		return -1;
+
+	if (ret >= sizeof(buf)) {
+		log_warning("overflow: %d", ret);
+		return 1;
+	}
+
+	if (!ret) {
+		log_debug("''");
+		return 0;
+	}
 	
+	log_debug("'%s'", strdump(buf));
+	
+	if ((ret = fwrite(buf, ret, 1, http->file)) < 0) {
+		log_pwarning("fwrite");
+		return -1;
+
+	} else if (!ret) {
+		log_pwarning("fwrite: EOF");
+		return 1;
+	}
+
 	return 0;
 }
 
