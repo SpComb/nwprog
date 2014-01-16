@@ -22,6 +22,19 @@ struct client_request {
 	const char *method;
 
 	size_t content_length;
+
+	/* Write request body from FILE */
+	FILE *content_file;
+};
+
+/*
+ * Contents/handling for response from server..
+ */
+struct client_response {
+	unsigned status;
+	const char *reason;
+
+	/* Write response content to FILE */
 	FILE *content_file;
 };
 
@@ -155,7 +168,7 @@ static int client_request (struct client *client, const struct client_request *r
 	return 0;
 }
 
-int client_response_header (struct client *client, const char *header, const char *value)
+int client_response_header (struct client *client, struct client_response *response, const char *header, const char *value)
 {
 	log_info("\t%20s: %s", header, value);
 
@@ -187,24 +200,23 @@ static int client_response_file (struct client *client, FILE *file)
 	return 0;
 }
 
-static int client_response (struct client *client)
+static int client_response (struct client *client, struct client_response *response)
 {
-	const char *version, *reason;
-	unsigned status;
+	const char *version;
 	int err;
 
-	if ((err = http_client_response_start(client->http, &version, &status, &reason))) {
+	if ((err = http_client_response_start(client->http, &version, &response->status, &response->reason))) {
 		log_error("error reading response line");
 		return err;
 	}
 	
-	log_info("%u %s", status, reason);
+	log_info("%u %s", response->status, response->reason);
 
 	const char *header, *value;
 	
 	// *header is preserved for folded header lines... so they appear as duplicate headers
 	while (!(err = http_client_response_header(client->http, &header, &value))) {
-		if ((err = client_response_header(client, header, value)))
+		if ((err = client_response_header(client, response, header, value)))
 			return err;
 	}
 
@@ -214,7 +226,8 @@ static int client_response (struct client *client)
 	}
 
 	// body
-	if ((err = client_response_file(client, stdout)))
+	// TODO: discard response content otherwise?
+	if (response->content_file && (err = client_response_file(client, response->content_file)))
 		return err;
 	
 	log_debug("end-of-response");
@@ -226,17 +239,19 @@ int client_get (struct client *client, const struct url *url)
 {
 	int err;
 
-	// request
 	struct client_request request = {
 		.url	= url,
 		.method	= "GET",
+	};
+
+	struct client_response response = {
+		.content_file	= stdout,
 	};
 	
 	if ((err = client_request(client, &request)))
 		return err;
 
-	// response	
-	if ((err = client_response(client)))
+	if ((err = client_response(client, &response)))
 		return err;
 
 	return 0;
@@ -273,11 +288,15 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 		.content_file	= file,
 	};
 
+	struct client_response response	= {
+		// XXX: not expecting a response?
+		.content_file	= stdout,
+	};
+
 	if ((err = client_request(client, &request)))
 		return err;
 
-	// response	
-	if ((err = client_response(client)))
+	if ((err = client_response(client, &response)))
 		return err;
 
 	return 0;
