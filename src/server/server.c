@@ -111,14 +111,20 @@ int server_request (struct server *server, struct http *http, struct server_requ
  */
 int server_response (struct server *server, struct http *http, struct server_response *response)
 {
+	log_info("%u %s", response->status, response->reason);
+
 	if (http_write_response(http, response->status, response->reason)) {
 		log_error("failed to write response line");
 		return 1;
 	}
 
-	if (response->content_length && http_write_header(http, "Content-Length", "%zu", response->content_length)) {
-		log_error("failed to write response header line");
-		return 1;
+	if (response->content_length) {
+		log_info("\t%20s : %zu", "Content-Length", response->content_length);
+
+	   	if (http_write_header(http, "Content-Length", "%zu", response->content_length)) {
+			log_error("failed to write response header line");
+			return 1;
+		}
 	}
 
 	if (http_write_headers(http)) {
