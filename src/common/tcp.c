@@ -65,6 +65,10 @@ int tcp_listen (int *sockp, const char *host, const char *port, int backlog)
 	};
 	struct addrinfo *addrs, *addr;
 	int sock = -1;
+    
+	// translate empty string to NULL
+	if (!*host)
+		host = NULL;
 
 	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
 		log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
