@@ -13,6 +13,9 @@ struct client {
 	int sock;
 
 	struct http *http;
+
+	/* Settings */
+	FILE *response_file;
 };
 
 /*
@@ -66,6 +69,16 @@ int client_create (struct client **clientp)
 	}
 	
 	*clientp = client;
+
+	return 0;
+}
+
+int client_set_response_file (struct client *client, FILE *file)
+{
+	if (client->response_file && fclose(client->response_file))
+		log_pwarning("fclose");
+
+	client->response_file = file;
 
 	return 0;
 }
@@ -198,6 +211,10 @@ static int client_response_file (struct client *client, FILE *file, size_t conte
 	size_t len = sizeof(buf), ret;
 	int err;
 
+	if (!content_length && file) {
+		log_debug("no content");
+	}
+
 	while (content_length) {
 		len = sizeof(buf);
 
@@ -287,7 +304,7 @@ int client_get (struct client *client, const struct url *url)
 	};
 
 	struct client_response response = {
-		.content_file	= stdout,
+		.content_file	= client->response_file,
 	};
 	
 	if ((err = client_request(client, &request)))
@@ -331,8 +348,7 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 	};
 
 	struct client_response response	= {
-		// XXX: not expecting a response?
-		// .content_file	= stdout,
+		.content_file	= client->response_file,
 	};
 
 	if ((err = client_request(client, &request)))

@@ -14,6 +14,13 @@ struct client;
 int client_create (struct client **clientp);
 
 /*
+ * Write response data to FILE, or NULL to bitbucket.
+ *
+ * The given FILE is owned by the client, and will be closed...
+ */
+int client_set_response_file (struct client *client, FILE *file);
+
+/*
  * Open a client for the given URL scheme://host:port.
  */
 int client_open (struct client *client, const struct url *url);

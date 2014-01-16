@@ -24,23 +24,30 @@ void help (const char *argv0) {
 			"	-v	--verbose		More output\n"
 			"	-d	--debug			Debug output\n"
 			"\n"
+			"	-G	--get=file		GET to file\n"
 			"   -P	--put=file		PUT from file\n"
 	, argv0);
 }
 
-int client (const char *arg, const char *put) {
+int client (const char *arg, const char *get, const char *put) {
 	struct urlbuf urlbuf;
 	struct client *client = NULL;
-	FILE *put_file = NULL;
+	FILE *get_file = stdout, *put_file = NULL;
 
 	if (urlbuf_parse(&urlbuf, arg)) {
 		log_fatal("invalid url: %s", arg);
 		return 1;
 	}
 
+	if (get && !(get_file = fopen(get, "w"))) {
+		log_error("fopen %s", get);
+		log_fatal("failed to open --get file for writing");
+		return 1;
+	}
+
 	if (put && !(put_file = fopen(put, "r"))) {
-		log_error("fopen");
-		log_fatal("failed to open --put file");
+		log_error("fopen %s", put);
+		log_fatal("failed to open --put file for reading");
 		return 1;
 	}
 
@@ -52,6 +59,11 @@ int client (const char *arg, const char *put) {
 	if (client_open(client, &urlbuf.url)) {
 		log_fatal("failed to open url");
 		return 3;
+	}
+
+	if (client_set_response_file(client, get_file)) {
+		log_fatal("failed to set client response file");
+		return 2;
 	}
 	
 	if (put_file) {
@@ -75,9 +87,9 @@ int main (int argc, char **argv)
 	int opt, longopt;
 	enum log_level log_level = LOG_LEVEL;
 	int err = 0;
-	const char *put = NULL;
+	const char *put = NULL, *get = NULL;
 
-	while ((opt = getopt_long(argc, argv, "hqvdP:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdG:P:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -94,6 +106,10 @@ int main (int argc, char **argv)
 			case 'd':
 				log_level = LOG_DEBUG;
 				break;
+			
+			case 'G':
+				get	= optarg;
+				break;
 
 			case 'P':
 				put = optarg;
@@ -109,7 +125,7 @@ int main (int argc, char **argv)
 	log_set_level(log_level);
 
 	while (optind < argc && !err) {
-		err = client(argv[optind++], put);
+		err = client(argv[optind++], get, put);
 	}
 	
 	return err;
