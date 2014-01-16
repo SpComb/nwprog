@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <sys/queue.h>
 
 struct client {
 	int sock;
@@ -16,6 +17,16 @@ struct client {
 
 	/* Settings */
 	FILE *response_file;
+
+    /* Headers */
+    TAILQ_HEAD(client_headers, client_header) headers;
+};
+
+struct client_header {
+    const char *name;
+    const char *value;
+
+    TAILQ_ENTRY(client_header) client_headers;
 };
 
 /*
@@ -46,19 +57,6 @@ struct client_response {
 	FILE *content_file;
 };
 
-/*
- * Attempt to connect to the given server.
- */
-int client_connect (struct client *client, const char *host, const char *port)
-{
-	if ((client->sock = tcp_connect(host, port)) < 0) {
-		log_perror("%s:%s", host, port);
-		return -1;
-	}
-
-	return 0;
-}
-
 int client_create (struct client **clientp)
 {
 	struct client *client;
@@ -67,6 +65,8 @@ int client_create (struct client **clientp)
 		log_perror("calloc");
 		return -1;
 	}
+
+    TAILQ_INIT(&client->headers);
 	
 	*clientp = client;
 
@@ -79,6 +79,36 @@ int client_set_response_file (struct client *client, FILE *file)
 		log_pwarning("fclose");
 
 	client->response_file = file;
+
+	return 0;
+}
+
+int client_add_header (struct client *client, const char *name, const char *value)
+{
+    struct client_header *header;
+
+    if (!(header = calloc(1, sizeof(*header)))) {
+        log_perror("calloc");
+        return -1;
+    }
+
+    header->name = name;
+    header->value = value;
+
+    TAILQ_INSERT_TAIL(&client->headers, header, client_headers);
+
+    return 0;
+}
+
+/*
+ * Attempt to connect to the given server.
+ */
+static int client_connect (struct client *client, const char *host, const char *port)
+{
+	if ((client->sock = tcp_connect(host, port)) < 0) {
+		log_perror("%s:%s", host, port);
+		return -1;
+	}
 
 	return 0;
 }
@@ -105,6 +135,7 @@ int client_open (struct client *client, const struct url *url)
 // XXX: this function exists only for the logging prefix atm
 int client_request_headers (struct client *client, const struct client_request *request)
 {
+    struct client_header *header;
 	int err = 0;
 
 	log_info("\t%20s: %s", "Host", request->url->host);
@@ -114,6 +145,11 @@ int client_request_headers (struct client *client, const struct client_request *
 		log_info("\t%20s: %zu", "Content-Length", request->content_length);
 		err |= http_client_request_headerf(client->http, "Content-length", "%zu", request->content_length);
 	}
+
+    TAILQ_FOREACH(header, &client->headers, client_headers) {
+        log_info("\t%20s: %s", header->name, header->value);
+        err |= http_client_request_header(client->http, header->name, header->value);
+    }
 
 	return err;
 }
@@ -362,5 +398,12 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 
 void client_destroy (struct client *client)
 {
+    struct client_header *header;
+
+    while ((header = TAILQ_FIRST(&client->headers))) {
+        TAILQ_REMOVE(&client->headers, header, client_headers);
+        free(header);
+    }
+
 	free(client);
 }
