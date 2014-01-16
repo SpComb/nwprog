@@ -176,7 +176,7 @@ int client_response_header (struct client *client, struct client_response *respo
 }
 
 /*
- * Write contents of response to FILE.
+ * Write contents of response to FILE, or discard if NULL.
  */
 static int client_response_file (struct client *client, FILE *file)
 {
@@ -186,7 +186,7 @@ static int client_response_file (struct client *client, FILE *file)
 
 	while (!(err = http_client_response_body(client->http, buf, &len))) {
 		// copy to stdout
-		if ((ret = fwrite(buf, len, 1, stdout)) != 1) {
+		if (file && (ret = fwrite(buf, len, 1, stdout)) != 1) {
 			log_pwarning("fwrite");
 			return -1;
 		}
@@ -225,9 +225,8 @@ static int client_response (struct client *client, struct client_response *respo
 		return err;
 	}
 
-	// body
-	// TODO: discard response content otherwise?
-	if (response->content_file && (err = client_response_file(client, response->content_file)))
+	// TODO: figure out if we actually have one
+	if ((err = client_response_file(client, response->content_file)))
 		return err;
 	
 	log_debug("end-of-response");
@@ -290,7 +289,7 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 
 	struct client_response response	= {
 		// XXX: not expecting a response?
-		.content_file	= stdout,
+		// .content_file	= stdout,
 	};
 
 	if ((err = client_request(client, &request)))
