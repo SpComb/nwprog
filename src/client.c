@@ -43,58 +43,72 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 	struct urlbuf urlbuf;
 	struct client *client = NULL;
 	FILE *get_file = stdout, *put_file = NULL;
+	int ret = 0;
 
 	if (urlbuf_parse(&urlbuf, arg)) {
 		log_fatal("invalid url: %s", arg);
-		return 1;
+		ret = 1;
+		goto error;
 	}
 
 	if (get && !(get_file = fopen(get, "w"))) {
 		log_error("fopen %s", get);
 		log_fatal("failed to open --get file for writing");
-		return 1;
+		ret = 1;
+		goto error;
 	}
 
 	if (put && !(put_file = fopen(put, "r"))) {
 		log_error("fopen %s", put);
 		log_fatal("failed to open --put file for reading");
-		return 1;
+		ret = 1;
+		goto error;
 	}
 
 	if (client_create(&client)) {
 		log_fatal("failed to initialize client");
-		return 2;
+		ret = 2;
+		goto error;
 	}
 	
 	if (client_open(client, &urlbuf.url)) {
 		log_fatal("failed to open url");
-		return 3;
+		ret = 3;
+		goto error;
 	}
 
 	if (client_set_response_file(client, get_file)) {
 		log_fatal("failed to set client response file");
-		return 2;
+		ret = 2;
+		goto error;
 	}
 
 	if (iam && client_add_header(client, "Iam", iam)) {
 		log_fatal("failed to set client Iam header");
-		return 2;
+		ret = 2;
+		goto error;
 	}
 	
 	if (put_file) {
 		if (client_put(client, &urlbuf.url, put_file)) {
 			log_fatal("PUT failed: %s", arg);
-			return 4;
+			ret = 4;
+			goto error;
 		}
 
 	} else {
 		if (client_get(client, &urlbuf.url)) {
 			log_fatal("GET failed: %s", arg);
-			return 4;
+			ret = 4;
+			goto error;
 		}
 	}
 
-	return 0;
+error:
+	if (client)
+		client_destroy(client);
+
+	return ret;
 }
 
 int main (int argc, char **argv)
