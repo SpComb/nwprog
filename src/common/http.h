@@ -16,7 +16,8 @@ int http_create (struct http **httpp, int sock);
 /*
  * Send a HTTP request line.
  */
-int http_write_request (struct http *http, const char *method, const char *fmt, ...);
+int http_write_request (struct http *http, const char *method, const char *fmt, ...)
+	__attribute((format (printf, 3, 4)));
 
 /*
  * Send a HTTP response line.
@@ -26,7 +27,8 @@ int http_write_response (struct http *http, unsigned status, const char *reason)
 /*
  * Send one HTTP header.
  */
-int http_write_header (struct http *http, const char *header, const char *fmt, ...);
+int http_write_header (struct http *http, const char *header, const char *fmt, ...)
+	__attribute((format (printf, 3, 4)));
 
 /*
  * End the HTTP headers.

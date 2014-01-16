@@ -12,7 +12,7 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string)
     bzero(urlbuf, sizeof(*urlbuf));
 
 	if (strlen(url_string) > sizeof(urlbuf->buf)) {
-		log_error("url is too long: %d", strlen(url_string));
+		log_error("url is too long: %zu", strlen(url_string));
 		return -1;
 	}
 

@@ -15,7 +15,8 @@ enum log_flag {
 	LOG_ERRNO	= 0x01,
 };
 
-void _log (const char *prefix, enum log_level level, int flags, const char *fmt, ...);
+void _log (const char *prefix, enum log_level level, int flags, const char *fmt, ...)
+	__attribute((format (printf, 4, 5)));
 
 #define log_debug(fmt, ...) 	_log(__func__, LOG_DEBUG,	0,			fmt, ##__VA_ARGS__)
 #define log_info(fmt, ...) 		_log(__func__, LOG_INFO,	0,			fmt, ##__VA_ARGS__)
