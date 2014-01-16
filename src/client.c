@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
 
 static const struct option main_options[] = {
 	{ "help",		0, 	NULL,		'h' },
@@ -26,6 +27,8 @@ void help (const char *argv0) {
 			"\n"
 			"	-G	--get=file		GET to file\n"
 			"	-P	--put=file		PUT from file\n"
+            "\n"
+            "   -I  --iam=username  Send Iam header\n"
 			"\n"
 			"Examples:\n"
 			"\n"
@@ -36,7 +39,7 @@ void help (const char *argv0) {
 	, argv0, argv0, argv0, argv0);
 }
 
-int client (const char *arg, const char *get, const char *put) {
+int client (const char *arg, const char *get, const char *put, const char *iam) {
 	struct urlbuf urlbuf;
 	struct client *client = NULL;
 	FILE *get_file = stdout, *put_file = NULL;
@@ -72,6 +75,11 @@ int client (const char *arg, const char *get, const char *put) {
 		log_fatal("failed to set client response file");
 		return 2;
 	}
+
+	if (iam && client_add_header(client, "Iam", iam)) {
+		log_fatal("failed to set client Iam header");
+		return 2;
+	}
 	
 	if (put_file) {
 		if (client_put(client, &urlbuf.url, put_file)) {
@@ -95,8 +103,9 @@ int main (int argc, char **argv)
 	enum log_level log_level = LOG_LEVEL;
 	int err = 0;
 	const char *put = NULL, *get = NULL;
+    const char *iam = getlogin();
 
-	while ((opt = getopt_long(argc, argv, "hqvdG:P:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -121,6 +130,10 @@ int main (int argc, char **argv)
 			case 'P':
 				put = optarg;
 				break;
+            
+            case 'I':
+                iam = optarg;
+                break;
 
 			default:
 				help(argv[0]);
@@ -132,7 +145,7 @@ int main (int argc, char **argv)
 	log_set_level(log_level);
 
 	while (optind < argc && !err) {
-		err = client(argv[optind++], get, put);
+		err = client(argv[optind++], get, put, iam);
 	}
 	
 	return err;
