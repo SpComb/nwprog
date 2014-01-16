@@ -18,7 +18,7 @@ test: bin/test-url bin/test-http
 	bin/test-url
 	bin/test-http 'HTTP/1.1 200 OK' 'Host: foo'
 
-doc: doc/README.html
+doc: doc/README.html doc/diary.html
 
 bin/client: build/src/client.o build/src/client/client.o build/src/common/http.o build/src/common/tcp.o build/src/common/sock.o build/src/common/url.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
 bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
@@ -42,7 +42,13 @@ build/%.o: %.c
 doc/README.html: README
 	markdown $< > $@
 
+doc/diary.txt:
+	hg log -r : --style doc/diary.style > $@
+
+doc/diary.html: doc/diary.txt
+	markdown $< > $@
+
 clean:
 	rm -rf core build/*/*/* bin/*
 
-.PHONY: dirs clean test
+.PHONY: dirs clean test doc/diary.txt
