@@ -27,7 +27,10 @@ const struct parse * parse_step (const struct parse *parsing, int state, char c)
 /* Write out a parsed token */
 int parse_store (const struct parse *parse, char *token)
 {
-	switch (parse->type) {
+	switch (parse->type & PARSE_TYPE) {
+		case PARSE_NONE:
+			return 1;
+
 		case PARSE_STRING:
 			*parse->parse_string = token;
 
@@ -49,55 +52,59 @@ int parse_store (const struct parse *parse, char *token)
 
 			return 0;
 	
-		case PARSE_NONE:
-			return 0;
-
 		default:
 			// not used
-			return 0;
+			log_warning("invalid parse type: %#x", parse->type);
+			return -1;
 	}
 }
 
 int parse (const struct parse *parsing, char *str, int state)
 {
-	char *c = str, *token = str;
+	char c, *strp = str, *token = str;
 	const struct parse *p;
 	int err;
 	
-	do {
-		if ((p = parse_step(parsing, state, *c))) {
-			if (p->type && p->type != PARSE_KEEP) {
-				// end current token
-				*c++ = '\0';
-
-				log_debug("%d <- %d = %s", p->next_state, state, token);
-				
-				if ((err = parse_store(p, token)))
-					return err;
-
-			} else {
-				// skip char
-				log_debug("%d <- %d : %s", p->next_state, state, c);
-
-				c++;
-			}
-			
-			// begin next token
-			state = p->next_state;
-			
-			if (p->type != PARSE_KEEP) {
-				token = c;
-			}
-
-		} else {
+	while ((c = *strp)) {
+		if (!(p = parse_step(parsing, state, c))) {
 			// token continues
-			c++;
+			strp++;
+			continue;
 		}
-	} while (*c);
+		
+		// terminiate token?
+		if (!(p->type & PARSE_KEEP)) {
+			// end current token
+			*strp = '\0';
+		}
+
+		if ((err = parse_store(p, token)) < 0)
+			return err;
+		
+		if (err) {	
+			log_debug("%d <- '%c' %d : %s", p->next_state, c, state, token);
+		} else {
+			log_debug("%d <- '%c' %d = %s", p->next_state, c, state, token);
+		}
+
+		// begin next token
+		state = p->next_state;
+		
+		if ((p->type & PARSE_SKIP)) {
+			// keep the token pointing to the previous token, terminated by this char
+			strp++;
+		} else if ((p->type & PARSE_KEEP)) {
+			// this non-terminated char is the start of the token
+			token = strp++;
+		} else {
+			// begin next token after this terminating char
+			token = ++strp;
+		}
+	}
 
 	// terminate
-	if ((p = parse_step(parsing, state, *c))) {
-		log_debug("%d <- %d = %s", p->next_state, state, token);
+	if ((p = parse_step(parsing, state, *strp))) {
+		log_debug("%d <-     %d = %s", p->next_state, state, token);
 
 		state = p->next_state;
 

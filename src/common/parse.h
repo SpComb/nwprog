@@ -11,8 +11,15 @@ enum parse_type {
 	PARSE_INT,
 	PARSE_UINT,
 
-	// skip token for next state
-	PARSE_KEEP,
+	
+	/* Flags */
+	PARSE_TYPE		= 0x0f,
+
+	// do not terminiate
+	PARSE_KEEP		= 0x10,
+	
+	// keep token
+	PARSE_SKIP		= 0x20,
 };
 
 struct parse {
