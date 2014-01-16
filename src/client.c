@@ -25,8 +25,15 @@ void help (const char *argv0) {
 			"	-d	--debug			Debug output\n"
 			"\n"
 			"	-G	--get=file		GET to file\n"
-			"   -P	--put=file		PUT from file\n"
-	, argv0);
+			"	-P	--put=file		PUT from file\n"
+			"\n"
+			"Examples:\n"
+			"\n"
+			"	%s -q http://www.ietf.org/rfc/rfc2616.txt\n"
+			"	%s -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt\n"
+			"	%s -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt\n"
+			"\n"
+	, argv0, argv0, argv0, argv0);
 }
 
 int client (const char *arg, const char *get, const char *put) {

@@ -12,9 +12,9 @@ OBJ_COMMON = $(SRC_COMMON:%.c=build/%.o)
 TEST_DIRS = $(filter %/,$(wildcard test/*/))
 TEST_SRCS = $(wildcard test/*/*.c)
 
-all: dirs bin/client bin/test-url bin/test-http
+all: dirs bin/client
 
-test:
+test: bin/test-url bin/test-http
 	bin/test-url
 	bin/test-http 'HTTP/1.1 200 OK' 'Host: foo'
 
