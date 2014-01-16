@@ -277,6 +277,39 @@ int server_response_file (struct server_client *client, size_t content_length, F
 	return 0;
 }
 
+int server_response_print (struct server_client *client, const char *fmt, ...)
+{
+	va_list args;
+	int err = 0;
+
+	if (!client->status) {
+		log_fatal("attempting to send response body without status");
+		return -1;
+	}
+
+	if (!client->headers) {
+		err |= server_response_header(client, "Connection", "close");
+		err |= server_response_headers(client);
+	}
+
+	if (err)
+		return err;
+	
+	// body
+	client->body = true;
+
+	va_start(args, fmt);
+	err = http_vwrite(client->http, fmt, args);
+	va_end(args);
+
+	if (err) {
+		log_warning("http_vwrite");
+		return err;
+	}
+
+	return 0;
+}
+
 /*
  * Handle client request.
  */

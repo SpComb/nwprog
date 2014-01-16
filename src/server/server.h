@@ -66,6 +66,15 @@ int server_response_header (struct server_client *client, const char *name, cons
 int server_response_file (struct server_client *client, size_t content_length, FILE *file);
 
 /*
+ * Send formatted data as part of the response.
+ *
+ * The response is sent without a Content-Length, and closed.
+ */
+int server_response_print (struct server_client *client, const char *fmt, ...)
+	__attribute((format (printf, 2, 3)));
+
+
+/*
  * Process client requests.
  */
 int server_run (struct server *server);
