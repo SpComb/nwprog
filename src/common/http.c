@@ -146,18 +146,6 @@ static int http_write_headerv (struct http *http, const char *header, const char
 	return 0;
 }
 
-static int http_write_header (struct http *http, const char *header, const char *fmt, ...)
-{
-	va_list args;
-	int err;
-	
-	va_start(args, fmt);
-	err = http_write_headerv(http, header, fmt, args);
-	va_end(args);
-
-	return err;
-}
-
 /*
  * Read arbitrary data from the connection.
  *
@@ -259,12 +247,7 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 }
 
 /* Client request writing */
-int http_write_request_start (struct http *http, const char *method, const char *path)
-{
-	return http_write_line(http, "%s %s %s", method, path, http->version);
-}
-
-int http_write_request_start_path (struct http *http, const char *method, const char *fmt, ...)
+int http_write_request (struct http *http, const char *method, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -285,12 +268,12 @@ int http_write_request_start_path (struct http *http, const char *method, const 
 	return 0;
 }
 
-int http_write_request_header (struct http *http, const char *header, const char *value)
+int http_write_response (struct http *http, unsigned status, const char *reason)
 {
-	return http_write_header(http, header, "%s", value);
+	return http_write_line(http, "%s %u %s", HTTP_VERSION, status, reason);
 }
 
-int http_write_request_headerf (struct http *http, const char *header, const char *fmt, ...)
+int http_write_header (struct http *http, const char *header, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -302,14 +285,80 @@ int http_write_request_headerf (struct http *http, const char *header, const cha
 	return err;
 }
 
-int http_write_request_end (struct http *http)
+int http_write_headers (struct http *http)
 {
 	return http_write_line(http, "");
 }
-
-int http_write_request_body (struct http *http, char *buf, size_t *lenp)
+/*
+ * Send (part of) a request body.
+ *
+ * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
+ *
+ * Returns 1 on EOF, <0 on error.
+ */
+int http_write_raw (struct http *http, char *buf, size_t *lenp)
 {
 	return http_write(http, buf, lenp);
+}
+
+int http_write_file (struct http *http, FILE *file, size_t content_length)
+{
+	char buf[512];
+	size_t ret, len = sizeof(buf);
+
+	while (content_length) {
+		len = sizeof(buf);
+
+		log_debug("content_length: %zu", content_length);
+		
+		// cap to expected dat
+		if (content_length < len)
+			len = content_length;
+		
+		// read block
+		if ((ret = fread(buf, 1, len, file)) < 0) {
+			log_pwarning("fread");
+			return -1;
+
+		} else if (!ret) {
+			log_debug("EOF");
+			break;
+		} else {
+			log_debug("fread: %zu", ret);
+			len = ret;
+		}
+
+		// sanity-check
+		if (len <= content_length) {
+			content_length -= len;
+		} else {
+			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
+			return -1;
+		}
+
+		// copy to request
+		char *bufp = buf;
+		size_t buflen = len;
+		
+		while (len) {
+			if (http_write(http, bufp, &buflen)) {
+				log_error("error writing request body");
+				return -1;
+			}
+
+			log_debug("http_write: %zu", buflen);
+
+			bufp += buflen;
+			len -= buflen;
+		}
+	}
+
+	if (content_length) {
+		log_warning("premature EOF: %zu", content_length);
+		return 1;
+	}
+
+	return 0;
 }
 
 int http_parse_request (char *line, const char **methodp, const char **pathp, const char **versionp)
@@ -392,9 +441,65 @@ int http_read_header (struct http *http, const char **headerp, const char **valu
 	return http_parse_header(line, headerp, valuep);
 }
 
-int http_read_body (struct http *http, char *buf, size_t *lenp)
+int http_read_raw (struct http *http, char *buf, size_t *lenp)
 {
 	return http_read(http, buf, lenp);
+}
+
+int http_read_file (struct http *http, FILE *file, size_t content_length)
+{
+	char buf[512];
+	size_t len = sizeof(buf), ret;
+	int err;
+
+	if (!content_length && file) {
+		log_debug("no content");
+	}
+
+	while (content_length) {
+		len = sizeof(buf);
+
+		log_debug("content_length: %zu", content_length);
+		
+		// cap to expected dat
+		if (content_length < len)
+			len = content_length;
+		
+		// read block
+		if ((err = http_read(http, buf, &len)) < 0) {
+			return err;
+
+		} else if (err) {
+			// EOF
+			break;
+
+		} else {
+			log_debug("read: %zu", len);
+		}
+
+		// sanity-check
+		if (len <= content_length) {
+			content_length -= len;
+		} else {
+			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
+			return -1;
+		}
+
+		// copy to stdout
+		if (file && (ret = fwrite(buf, len, 1, file)) != 1) {
+			log_pwarning("fwrite");
+			return -1;
+		}
+		
+		log_debug("write: %zu", len);
+	}
+	
+	if (content_length) {
+		log_warning("missing content: %zu", content_length);
+		return 1;
+	}
+
+	return 0;
 }
 
 void http_destroy (struct http *http)

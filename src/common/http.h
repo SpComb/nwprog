@@ -2,6 +2,7 @@
 #define HTTP_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 struct http;
 
@@ -13,28 +14,31 @@ struct http;
 int http_create (struct http **httpp, int sock);
 
 /*
- * Send a HTTP request.
+ * Send a HTTP request line.
  */
-int http_write_request_start (struct http *http, const char *method, const char *path);
-int http_write_request_start_path (struct http *http, const char *method, const char *fmt, ...);
-int http_write_request_header (struct http *http, const char *header, const char *value);
-int http_write_request_headerf (struct http *http, const char *header, const char *fmt, ...);
+int http_write_request (struct http *http, const char *method, const char *fmt, ...);
+
+/*
+ * Send a HTTP response line.
+ */
+int http_write_response (struct http *http, unsigned status, const char *reason);
+
+/*
+ * Send one HTTP header.
+ */
+int http_write_header (struct http *http, const char *header, const char *fmt, ...);
 
 /*
  * End the HTTP headers.
- *
- * XXX: rename
  */
-int http_write_request_end (struct http *http);
+int http_write_headers (struct http *http);
 
 /*
- * Send a HTTP request body.
- *
- * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
+ * Send a HTTP request body from a FILE.
  *
  * Returns 1 on EOF, <0 on error.
  */
-int http_write_request_body (struct http *http, char *buf, size_t *lenp);
+int http_write_file (struct http *http, FILE *file, size_t content_length);
 
 
 
@@ -65,8 +69,12 @@ int http_read_header (struct http *http, const char **headerp, const char **valu
  *
  * Returns 1 on EOF, <0 on error.
  */
-int http_read_body (struct http *http, char *buf, size_t *lenp);
+int http_read_raw (struct http *http, char *buf, size_t *lenp);
 
+/*
+ * Read the response body into FILE, or discard if NULL.
+ */
+int http_read_file (struct http *http, FILE *file, size_t content_length);
 
 
 

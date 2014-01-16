@@ -139,57 +139,19 @@ int client_request_headers (struct client *client, const struct client_request *
 	int err = 0;
 
 	log_info("\t%20s: %s", "Host", request->url->host);
-	err |= http_write_request_header(client->http, "Host", request->url->host);
+	err |= http_write_header(client->http, "Host", "%s", request->url->host);
 
 	if (request->content_length) {
 		log_info("\t%20s: %zu", "Content-Length", request->content_length);
-		err |= http_write_request_headerf(client->http, "Content-length", "%zu", request->content_length);
+		err |= http_write_header(client->http, "Content-length", "%zu", request->content_length);
 	}
 
     TAILQ_FOREACH(header, &client->headers, client_headers) {
         log_info("\t%20s: %s", header->name, header->value);
-        err |= http_write_request_header(client->http, header->name, header->value);
+        err |= http_write_header(client->http, header->name, "%s", header->value);
     }
 
 	return err;
-}
-
-/*
- * Write contents of FILE to request.
- */
-int client_request_file (struct client *client, size_t content_length, FILE *file)
-{
-	char buf[512], *bufp;
-	size_t ret, len = sizeof(buf);
-
-	// TODO: respect content_length
-	do {
-		if ((ret = fread(buf, 1, sizeof(buf), file)) < 0) {
-			log_pwarning("fread");
-			return -1;
-		}
-
-		log_debug("fread: %zu", ret);
-
-		if (!ret)
-			// EOF
-			return 0;
-
-		bufp = buf;
-		len = ret;
-		
-		while (ret) {
-			if (http_write_request_body(client->http, bufp, &len)) {
-				log_error("error writing request body");
-				return -1;
-			}
-
-			log_debug("http_write_request_body: %zu", len);
-
-			bufp += len;
-			ret -= len;
-		}
-	} while (true);
 }
 
 static int client_request (struct client *client, const struct client_request *request)
@@ -199,7 +161,7 @@ static int client_request (struct client *client, const struct client_request *r
 	// request
 	log_info("%s http://%s/%s", request->method, sockpeer_str(client->sock), request->url->path);
 
-	if ((err = http_write_request_start_path(client->http, request->method, "/%s", request->url->path))) {
+	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");
 		return err;
 	}
@@ -209,12 +171,12 @@ static int client_request (struct client *client, const struct client_request *r
 		return err;
 	}
 
-	if ((err = http_write_request_end(client->http))) {
+	if ((err = http_write_headers(client->http))) {
 		log_error("error sending request end-of-headers");
 		return err;
 	}
 
-	if (request->content_file && (err = client_request_file(client, request->content_length, request->content_file)))
+	if (request->content_file && (err = http_write_file(client->http, request->content_file, request->content_length)))
 		return err;
 
 	log_debug("end-of-request");
@@ -233,64 +195,6 @@ int client_response_header (struct client *client, struct client_response *respo
 		}
 
 		log_debug("content_length=%zu", response->content_length);
-	}
-
-	return 0;
-}
-
-/*
- * Write contents of response to FILE, or discard if NULL.
- */
-static int client_response_file (struct client *client, FILE *file, size_t content_length)
-{
-	char buf[512];
-	size_t len = sizeof(buf), ret;
-	int err;
-
-	if (!content_length && file) {
-		log_debug("no content");
-	}
-
-	while (content_length) {
-		len = sizeof(buf);
-
-		log_debug("content_length: %zu", content_length);
-		
-		// cap to expected dat
-		if (content_length < len)
-			len = content_length;
-
-		if ((err = http_read_body(client->http, buf, &len)) < 0) {
-			log_error("error reading response body");
-			return err;
-		}
-		
-		log_debug("read: %zu", len);
-
-		if (err) {
-			// EOF
-			break;
-		}
-
-		// copy to stdout
-		if (file && (ret = fwrite(buf, len, 1, file)) != 1) {
-			log_pwarning("fwrite");
-			return -1;
-		}
-		
-		log_debug("write: %zu", len);
-		
-		// sanity-check
-		if (len <= content_length) {
-			content_length -= len;
-		} else {
-			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
-			return -1;
-		}
-	}
-	
-	if (content_length) {
-		log_warning("missing content: %zu", content_length);
 	}
 
 	return 0;
@@ -322,7 +226,7 @@ static int client_response (struct client *client, struct client_response *respo
 	}
 
 	// TODO: figure out if we actually have one
-	if ((err = client_response_file(client, response->content_file, response->content_length)))
+	if ((err = http_read_file(client->http, response->content_file, response->content_length)))
 		return err;
 	
 	log_debug("end-of-response");
