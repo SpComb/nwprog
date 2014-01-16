@@ -27,21 +27,14 @@ struct server_handler_item {
 	TAILQ_ENTRY(server_handler_item) server_handlers;
 };
 
-struct server_request {
-	/* Headers */
-	size_t content_length;
-};
-
-struct server_response {
-	/* Headers */
-	size_t content_length;
-
-	/* Write response content to FILE */
-	FILE *content_file;
-};
-
 struct server_client {
 	struct http *http;
+
+	/* Request */
+	char request_method[HTTP_METHOD_MAX];
+	char request_path[HTTP_PATH_MAX];
+	
+	size_t request_content_length;
 	
 	/* Sent */
 	unsigned status;
@@ -81,7 +74,7 @@ int server_add_handler (struct server *server, const char *method, const char *p
 {
 	struct server_handler_item *h = NULL;
 
-	if (!(h = calloc(1, sizeof(h)))) {
+	if (!(h = calloc(1, sizeof(*h)))) {
 		log_pwarning("calloc");
 		return -1;
 	}
@@ -109,17 +102,90 @@ int server_lookup_handler (struct server *server, const char *method, const char
 		if (h->path && strncmp(h->path, path, strlen(h->path)))
 			continue;
 		
-		log_info("%s", h->path);
+		log_debug("%s", h->path);
 
 		*handlerp = h->handler;
 		return 0;
 	}
 	
-	log_info("%s: not found", path);
-	return 1;
+	log_warning("%s: not found", path);
+	return 404;
 }
 
-int server_client_response (struct server_client *client, enum http_status status, const char *reason)
+int server_request (struct server_client *client)
+{
+	const char *method, *path, *version;
+	int err;
+
+	if ((err = http_read_request(client->http, &method, &path, &version))) {
+		log_warning("http_read_request");
+		return err;
+	}
+
+	if (strlen(method) >= sizeof(client->request_method)) {
+		log_warning("method is too long: %zu", strlen(method));
+		return 400;
+	} else {
+		strncpy(client->request_method, method, sizeof(client->request_method));
+	}
+
+	if (strlen(path) >= sizeof(client->request_path)) {
+		log_warning("path is too long: %zu", strlen(path));
+		return 400;
+	} else {
+		strncpy(client->request_path, path, sizeof(client->request_path));
+	}
+
+	log_info("%s %s %s", method, path, version);
+
+	return 0;
+}
+
+int server_request_header (struct server_client *client, const char **namep, const char **valuep)
+{
+	int err;
+
+	if ((err = http_read_header(client->http, namep, valuep)) < 0) {
+		log_warning("http_read_header");
+		return err;
+	}
+
+	if (err)
+		return 1;
+
+	log_info("\t%20s : %s", *namep, *valuep);
+
+	if (strcasecmp(*namep, "Content-Length") == 0) {
+		if (sscanf(*valuep, "%zu", &client->request_content_length) != 1) {
+			log_warning("invalid content_length: %s", *valuep);
+			return 400;
+		}
+
+		log_debug("content_length=%zu", client->request_content_length);
+	}
+	
+	return 0;
+}
+
+int server_request_file (struct server_client *client, FILE *file)
+{
+	int err;
+
+	// TODO: Transfer-Encoding?
+	if (!client->request_content_length) {
+		log_debug("no request body given");
+		return 411;
+	}
+		
+	if (((err = http_read_file(client->http, file, client->request_content_length)))){
+		log_warning("http_read_file");
+		return err;
+	}
+	
+	return 0;
+}
+
+int server_response (struct server_client *client, enum http_status status, const char *reason)
 {
 	if (client->status) {
 		log_fatal("attempting to re-send status: %u", status);
@@ -138,7 +204,7 @@ int server_client_response (struct server_client *client, enum http_status statu
 	return 0;
 }
 
-int server_client_header (struct server_client *client, const char *name, const char *fmt, ...)
+int server_response_header (struct server_client *client, const char *name, const char *fmt, ...)
 {
 	int err;
 
@@ -170,7 +236,7 @@ int server_client_header (struct server_client *client, const char *name, const 
 	return 0;
 }
 
-int server_client_headers (struct server_client *client)
+int server_response_headers (struct server_client *client)
 {
 	client->headers = true;
 
@@ -182,16 +248,16 @@ int server_client_headers (struct server_client *client)
 	return 0;
 }
 
-int server_client_file (struct server_client *client, size_t content_length, FILE *file)
+int server_response_file (struct server_client *client, size_t content_length, FILE *file)
 {
 	int err;
 
-	if ((err = server_client_header(client, "Content-Length", "%zu", content_length))) {
+	if ((err = server_response_header(client, "Content-Length", "%zu", content_length))) {
 		return err;
 	}
 	
 	// headers
-	if ((err = server_client_headers(client))) {
+	if ((err = server_response_headers(client))) {
 		return err;
 	}
 
@@ -216,125 +282,61 @@ int server_client_file (struct server_client *client, size_t content_length, FIL
  */
 int server_client (struct server *server, struct server_client *client)
 {
-	struct server_request request = { };
 	struct server_handler *handler = NULL;
+	enum http_status status = 0;
 	int err;
 
 	// request
-	{
-		const char *method, *path, *version;
-
-		if ((err = http_read_request(client->http, &method, &path, &version))) {
-			log_warning("http_read_request");
-			goto error;
-		}
-
-		log_info("%s %s %s", method, path, version);
-
-		if ((err = server_lookup_handler(server, method, path, &handler)) < 0)
-			goto error;
-		
-		// handle
-		if (handler && (err = handler->request(handler, client, method, path))) {
-			goto error;
-		}
-	}
-
-	// headers
-	{
-		const char *header, *value;
-
-		while (!(err = http_read_header(client->http, &header, &value))) {
-			log_info("\t%20s : %s", header, value);
-
-			if (strcasecmp(header, "Content-Length") == 0) {
-				if (sscanf(value, "%zu", &request.content_length) != 1) {
-					log_warning("invalid content_length: %s", value);
-					err = 1;
-					goto error;
-				}
-
-				log_debug("content_length=%zu", request.content_length);
-			}
-
-			if (handler && ((err = handler->request_header(handler, client, header, value)))) {
-				goto error;
-			}
-		}
-
-		if (err < 0) {
-			log_warning("http_read_header");
-			goto error;
-		}
-
-		err = 0;
-	}
-	
-	// body
-	{
-		// TODO: determine if the request includes a body; inspect Transfer-Encoding?
-		if (!request.content_length) {
-			log_debug("not expecting a request body");
-
-		} else {
-			FILE *file = NULL;
-			
-			if (handler && ((err = handler->request_body(handler, client, request.content_length, &file)))) {
-				goto error;
-			}
-
-			if (((err = http_read_file(client->http, file, request.content_length)))){
-				log_warning("http_read_file");
-				goto error;
-			}
-		}
-	}
-
-	// respond
-	if (handler && (err = handler->response(handler, client))) {
+	if ((err = server_request(client))) {
 		goto error;
 	}
 
-error:	
-	{
-		// status
-		enum http_status status = 0;
+	// handler 
+	if ((err = server_lookup_handler(server, client->request_method, client->request_path, &handler)) < 0) {
+		goto error;
 
-		if (err < 0) {
-			status = HTTP_INTERNAL_SERVER_ERROR;
+	} else if (err) {
+		handler = NULL;
 
-		} else if (err > 0) {
-			status = HTTP_BAD_REQUEST;
-
-		} else if (!handler) {
-			status = HTTP_NOT_FOUND;
-
-		} else {
-			status = 0;
-		}
-		
-		if (status && client->status) {
-			log_warning("status %u already sent, should be %u", client->status, status);
-		} else if (!status && !client->status) {
-			log_warning("status not sent");
-		} else {
-			if (server_client_response(client, status, NULL)) {
-				log_warning("failed to send response status");
-				err = -1;
-			}
-		}
-		
-		// headers
-		if (!client->headers) {
-			if (server_client_headers(client)) {
-				log_warning("failed to end response headers");
-				err = -1;
-			}
-		}
-
-		// TODO: body
+	} else {
+		err = handler->request(handler, client, client->request_method, client->request_path);
 	}
 
+error:	
+	// response
+	if (err < 0) {
+		status = HTTP_INTERNAL_SERVER_ERROR;
+
+	} else if (err > 0) {
+		status = err;
+
+	} else if (client->status) {
+		status = 0;
+
+	} else {
+		log_warning("status not sent, defaulting to 500");
+		status = 500;
+	}
+	
+	if (status && client->status) {
+		log_warning("status %u already sent, should be %u", client->status, status);
+
+	} else if (status) {
+		if (server_response(client, status, NULL)) {
+			log_warning("failed to send response status");
+			err = -1;
+		}
+	}
+	
+	// headers
+	if (!client->headers) {
+		if (server_response_headers(client)) {
+			log_warning("failed to end response headers");
+			err = -1;
+		}
+	}
+
+	// TODO: body on errors
 	return err;
 }
 
@@ -377,13 +379,22 @@ error:
 	if (sock >= 0)
 		close(sock);
 
-	return err;
+	return 0;
 }
 
 void server_destroy (struct server *server)
 {
+
 	if (server->sock >= 0)
 		close(server->sock);
+
+	// handlers
+    struct server_handler_item *h;
+
+    while ((h = TAILQ_FIRST(&server->handlers))) {
+        TAILQ_REMOVE(&server->handlers, h, server_handlers);
+        free(h);
+    }
 
 	free(server);
 }
