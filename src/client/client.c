@@ -107,7 +107,7 @@ int client_request_headers (struct client *client, const struct client_request *
 {
 	int err = 0;
 
-	log_info("\t%20s: %s", "Host", request->url->path);
+	log_info("\t%20s: %s", "Host", request->url->host);
 	err |= http_client_request_header(client->http, "Host", request->url->host);
 
 	if (request->content_length) {
