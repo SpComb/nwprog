@@ -8,6 +8,13 @@ struct http;
 
 #define HTTP_VERSION "HTTP/1.0"
 
+enum http_status {
+	HTTP_OK						= 200,
+	HTTP_BAD_REQUEST			= 400,
+	HTTP_NOT_FOUND				= 404,
+	HTTP_INTERNAL_SERVER_ERROR	= 500,
+};
+
 /*
  * Create a new HTTP connect using the given socket.
  */
@@ -21,12 +28,15 @@ int http_write_request (struct http *http, const char *method, const char *fmt, 
 
 /*
  * Send a HTTP response line.
+ *
+ * Reason can be passed as NULL if status is a recognized status code.
  */
-int http_write_response (struct http *http, unsigned status, const char *reason);
+int http_write_response (struct http *http, enum http_status status, const char *reason);
 
 /*
  * Send one HTTP header.
  */
+int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args);
 int http_write_header (struct http *http, const char *header, const char *fmt, ...)
 	__attribute((format (printf, 3, 4)));
 

@@ -22,6 +22,21 @@ struct http {
 	const char *version;
 };
 
+static const char * http_status_str (enum http_status status)
+{
+	switch (status) {
+		case 200:	return "OK";
+
+		case 400:	return "Bad Request";
+		case 404:	return "Not Found";
+
+		case 500:	return "Internal Server Error";
+		
+		// hrhr
+		default:	return "Unknown Response Status";
+	}
+}
+
 
 int http_create (struct http **httpp, int fd)
 {
@@ -130,21 +145,6 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 	return 0;
 }
 
-static int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args)
-{
-	int err;
-	
-	if ((err = http_writef(http, "%s: ", header)))
-		return err;
-
-	if ((err = http_vwrite(http, fmt, args)))
-		return err;
-	
-	if ((err = http_writef(http, "\r\n")))
-		return err;
-
-	return 0;
-}
 
 /*
  * Read arbitrary data from the connection.
@@ -270,7 +270,27 @@ int http_write_request (struct http *http, const char *method, const char *fmt, 
 
 int http_write_response (struct http *http, unsigned status, const char *reason)
 {
+	if (!reason) {
+		reason = http_status_str(status);
+	}
+
 	return http_write_line(http, "%s %u %s", HTTP_VERSION, status, reason);
+}
+
+int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args)
+{
+	int err;
+	
+	if ((err = http_writef(http, "%s: ", header)))
+		return err;
+
+	if ((err = http_vwrite(http, fmt, args)))
+		return err;
+	
+	if ((err = http_writef(http, "\r\n")))
+		return err;
+
+	return 0;
 }
 
 int http_write_header (struct http *http, const char *header, const char *fmt, ...)
