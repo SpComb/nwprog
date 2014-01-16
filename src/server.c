@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 struct options {
+	bool daemon;
 	const char *iam;
 	const char *S;
 };
@@ -20,6 +21,7 @@ static const struct option main_options[] = {
 	{ "quiet",		0, 	NULL,		'q' },
 	{ "verbose",	0,	NULL,		'v'	},
 	{ "debug",		0,	NULL,		'd'	},
+	{ "daemon",		0,	NULL,		'D'	},
 
 	{ "iam",		1,	NULL,		'I' },
 	{ "static",		1,	NULL,		'S' },
@@ -35,8 +37,9 @@ void help (const char *argv0) {
 			"	-v --verbose       More output\n"
 			"	-d --debug         Debug output\n"
 			"\n"
-			"	-I --iam=username  	Send Iam header\n"
+			"	-D --daemon			Daemonize\n"
 			"\n"
+			"	-I --iam=username  	Send Iam header\n"
 			"	-S --static=path	Serve static files\n"
 			"\n"
 	, argv0);
@@ -75,6 +78,10 @@ int server (const struct options *options, const char *arg)
 	}
 
 	// XXX: mainloop
+	if (options->daemon) {
+		daemon_start();
+	}
+
 	while (true) {
 		if ((err = server_run(server)) < 0) {
 			log_fatal("server_run");
@@ -107,7 +114,7 @@ int main (int argc, char **argv)
 		.iam	= getlogin(),
 	};
 
-	while ((opt = getopt_long(argc, argv, "hqvdI:S:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdDI:S:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -124,6 +131,9 @@ int main (int argc, char **argv)
 			case 'd':
 				log_level = LOG_DEBUG;
 				break;
+
+			case 'D':
+				options.daemon = true;
 			
             case 'I':
                 options.iam = optarg;

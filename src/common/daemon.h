@@ -6,4 +6,9 @@
  */
 int daemon_init ();
 
+/*
+ * Detach from terminal.
+ */
+int daemon_start ();
+
 #endif

@@ -14,3 +14,14 @@ int daemon_init ()
 
 	return 0;
 }
+
+int daemon_start ()
+{
+	// nochdir, close
+	if (daemon(1, 0)) {
+		log_perror("daemon");
+		return -1;
+	}
+
+	return 0;
+}
