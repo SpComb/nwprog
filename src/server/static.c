@@ -2,8 +2,10 @@
 
 #include "common/log.h"
 
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 struct server_static {
@@ -13,6 +15,35 @@ struct server_static {
 	const char *root;
 };
 
+int server_static_file (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat)
+{
+	int err;
+
+	// respond
+	if ((err = server_response(client, 200, NULL)))
+		return err;
+
+	if ((err = server_response_file(client, stat->st_size, file)))
+		return err;
+
+	return 0;
+}
+
+int server_static_dir (struct server_static *s, struct server_client *client, DIR *dir)
+{
+	struct dirent *d;
+	int err;
+
+	if ((err = server_response(client, 200, NULL)))
+		return err;
+
+	while ((d = readdir(dir))) {
+		server_response_print(client, "%s\n", d->d_name);
+	}
+
+	return 0;
+}
+
 int server_static_request (struct server_handler *handler, struct server_client *client, const char *method, const char *path)
 {
 	struct server_static *s = (struct server_static *) handler;
@@ -20,7 +51,6 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	int dirfd = -1, filefd = -1;
 	int ret = 0;
 	struct stat stat;
-	FILE *file;
 
 	// see if there are any interesting request headers
 	const char *header, *value;
@@ -31,55 +61,88 @@ int server_static_request (struct server_handler *handler, struct server_client 
 
 	if (ret < 0)
 		goto error;
+	
+	// log
+	if (*path == '/') {
+		path++;
+	}
+
+	log_debug("%s%s", s->root, path);
 
 	// first open the dir
 	if ((dirfd = open(s->root, O_RDONLY)) < 0) {
 		log_perror("open %s", s->root);
 		goto error;
 	}
-
-	// then open the file
-	if (*path == '/') {
-		path++;
-	}
-
-	if ((filefd = openat(dirfd, path, O_RDONLY)) < 0) {
-		log_pwarning("open %s/%s", s->root, path);
-		ret = 404;
-		goto error;
-	}
-
-	log_info("%s: %s %s", s->root, method, path);
 	
-	// stat for filetype and size
-	if (fstat(filefd, &stat)) {
-		log_pwarning("fstat");
-		ret = 403;
-		goto error;
+	if (*path) {
+		// stat for meta
+		if (fstatat(dirfd, path, &stat, 0)) {
+			log_pwarning("fstatat %s/%s", s->root, path);
+			ret = 404;
+			goto error;
+		}
+
+		// then open the file
+		if ((filefd = openat(dirfd, path, O_RDONLY)) < 0) {
+			log_pwarning("open %s/%s", s->root, path);
+			ret = 403;
+			goto error;
+		}
+	} else {
+		// use dir root
+		if (fstat(dirfd, &stat)) {
+			log_pwarning("fstat %s", s->root);
+			ret = 403;
+			goto error;
+		}
+		
+		filefd = dirfd;
+		dirfd = -1;
 	}
+	
+	log_info("%s %s %s", s->root, method, path);
 
 	// check
-	if (stat.st_mode & S_IFMT != S_IFREG) {
+	if ((stat.st_mode & S_IFMT) == S_IFREG) {
+		FILE *file;
+
+		if (!(file = fdopen(filefd, "r"))) {
+			log_pwarning("fdopen");
+			ret = -1;
+			goto error;
+		} else {
+			filefd = -1;
+		}
+
+		ret = server_static_file(s, client, file, &stat);
+
+		if (fclose(file)) {
+			log_pwarning("fclose");
+		}
+	
+	} else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
+		DIR *dir;
+
+		if (!(dir = fdopendir(filefd))) {
+			log_pwarning("fdiropen");
+			ret = -1;
+			goto error;
+		} else {
+			filefd = -1;
+		}
+		
+		ret = server_static_dir(s, client, dir);
+
+		if (closedir(dir)) {
+			log_pwarning("closedir");
+		}
+
+	} else {
 		log_warning("%s/%s: not a file", s->root, path);
 		ret = 404;
 		goto error;
 	}
-	
-	// open stream
-	if (!(file = fdopen(filefd, "r"))) {
-		log_pwarning("fdopen");
-		ret = -1;
-		goto error;
-	} else {
-		filefd = -1;
-	}
-	
-	// respond
-	if ((ret = server_response(client, 200, NULL)))
-		goto error;
-
-	if ((ret = server_response_file(client, stat.st_size, file)))
-		goto error;
 	
 error:
 	if (dirfd > 0)
