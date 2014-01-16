@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <strings.h>
 
 struct client {
 	int sock;
@@ -21,6 +22,7 @@ struct client_request {
 	const struct url *url;
 	const char *method;
 
+	/* Headers */
 	size_t content_length;
 
 	/* Write request body from FILE */
@@ -33,6 +35,9 @@ struct client_request {
 struct client_response {
 	unsigned status;
 	const char *reason;
+
+	/* Headers */
+	size_t content_length;
 
 	/* Write response content to FILE */
 	FILE *content_file;
@@ -172,31 +177,69 @@ int client_response_header (struct client *client, struct client_response *respo
 {
 	log_info("\t%20s: %s", header, value);
 
+	if (strcasecmp(header, "Content-Length") == 0) {
+		if (sscanf(value, "%zu", &response->content_length) != 1) {
+			log_warning("invalid content_length: %s", value);
+			return 1;
+		}
+
+		log_debug("content_length=%zu", response->content_length);
+	}
+
 	return 0;
 }
 
 /*
  * Write contents of response to FILE, or discard if NULL.
  */
-static int client_response_file (struct client *client, FILE *file)
+static int client_response_file (struct client *client, FILE *file, size_t content_length)
 {
 	char buf[512];
 	size_t len = sizeof(buf), ret;
 	int err;
 
-	while (!(err = http_client_response_body(client->http, buf, &len))) {
+	while (content_length) {
+		len = sizeof(buf);
+
+		log_debug("content_length: %zu", content_length);
+		
+		// cap to expected dat
+		if (content_length < len)
+			len = content_length;
+
+		if ((err = http_client_response_body(client->http, buf, &len)) < 0) {
+			log_error("error reading response body");
+			return err;
+		}
+		
+		log_debug("read: %zu", len);
+
+		if (err) {
+			// EOF
+			break;
+		}
+
 		// copy to stdout
-		if (file && (ret = fwrite(buf, len, 1, stdout)) != 1) {
+		if (file && (ret = fwrite(buf, len, 1, file)) != 1) {
 			log_pwarning("fwrite");
 			return -1;
 		}
-	}
-
-	if (err < 0) {
-		log_error("error reading response body");
-		return err;
+		
+		log_debug("write: %zu", len);
+		
+		// sanity-check
+		if (len <= content_length) {
+			content_length -= len;
+		} else {
+			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
+			return -1;
+		}
 	}
 	
+	if (content_length) {
+		log_warning("missing content: %zu", content_length);
+	}
+
 	return 0;
 }
 
@@ -226,7 +269,7 @@ static int client_response (struct client *client, struct client_response *respo
 	}
 
 	// TODO: figure out if we actually have one
-	if ((err = client_response_file(client, response->content_file)))
+	if ((err = client_response_file(client, response->content_file, response->content_length)))
 		return err;
 	
 	log_debug("end-of-response");
