@@ -8,10 +8,12 @@ struct test_url {
     const char *str;
     const struct url url;
 } tests[] = {
-    { "",                   { .path = "" } },
-    { "foo",                { .path = "foo" } },    // XXX
+    { "",                   { .host = "" } },
+    { "foo",                { .host	= "foo" } },
     { "/foo",               { .path = "foo" } },
     { "//foo",              { .host = "foo" } },
+    
+	{ "host:port",                	{ .host	= "host", .port = "port" } },
 
     { "//host/path",                { .host = "host", .path = "path" } },
     { "//host:port/path",           { .host = "host", .port = "port", .path = "path" } },
@@ -115,17 +117,20 @@ int main (int argc, char **argv)
 	const char *arg;
     int err;
 
-	log_set_level(LOG_INFO);
 	
 	// skip argv0
 	argv++;
     
     if (*argv) {
+		log_set_level(LOG_DEBUG);
+
         // from args
         while ((arg = *argv++)) {
             err |= test_arg(arg);
         }
     } else {
+		log_set_level(LOG_INFO);
+
         for (struct test_url *test = tests; test->str; test++) {
             err |= test_url(test);
         }

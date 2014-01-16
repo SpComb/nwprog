@@ -42,26 +42,26 @@ int url_parse (struct url *url, char *buf)
 
 	};
     struct parse parsing[] = {
-        { START,        ':',        SCHEME,     PARSE_STRING,   .parse_string = &url->scheme        },
         { START,        '/',        START_SEP   },
-        { START,        0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
+        { START,        ':',        SCHEME,     PARSE_SKIP					},
+        { START,        0,          HOST,       PARSE_STRING,   			.parse_string = &url->host			},
 
         { START_SEP,    '/',        HOST        },
-        { START_SEP,    0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
+        { START_SEP,    0,          PATH,       PARSE_STRING,   			.parse_string = &url->path          },
 
-        { SCHEME,       '/',        SCHEME_SEP  },
-        { SCHEME,       -1,         -1,         PARSE_STRING,   .parse_string = &url->path          },
+        { SCHEME,       '/',        SCHEME_SEP,	PARSE_STRING,				.parse_string = &url->scheme		},
+        { SCHEME,       -1,         PORT,       PARSE_STRING | PARSE_KEEP, 	.parse_string = &url->host			},
 
         { SCHEME_SEP,   '/',        HOST        },
         
-        { HOST,         ':',        PORT,       PARSE_STRING,   .parse_string = &url->host          },
-        { HOST,         '/',        PATH,       PARSE_STRING,   .parse_string = &url->host          },
-        { HOST,         0,          HOST,       PARSE_STRING,   .parse_string = &url->host          },
+        { HOST,         ':',        PORT,       PARSE_STRING,   			.parse_string = &url->host          },
+        { HOST,         '/',        PATH,       PARSE_STRING,   			.parse_string = &url->host          },
+        { HOST,         0,          HOST,       PARSE_STRING,   			.parse_string = &url->host          },
 
-        { PORT,         '/',        PATH,       PARSE_STRING,   .parse_string = &url->port          },
-        { PORT,         0,          PORT,       PARSE_STRING,   .parse_string = &url->port          },
+        { PORT,         '/',        PATH,       PARSE_STRING,   			.parse_string = &url->port          },
+        { PORT,         0,          PORT,       PARSE_STRING,   			.parse_string = &url->port          },
 
-        { PATH,         0,          PATH,       PARSE_STRING,   .parse_string = &url->path          },
+        { PATH,         0,          PATH,       PARSE_STRING,   			.parse_string = &url->path          },
 
         { }
     }; 
@@ -83,9 +83,10 @@ void url_dump (const struct url *url, FILE *f)
 	if (url->host) {
 		fprintf(f, "//%s", url->host);
 
-		if (url->port) {
-			fprintf(f, ":%s", url->port);
-		}
+	}
+		
+	if (url->port) {
+		fprintf(f, ":%s", url->port);
 	}
 
 	if (url->path) {
