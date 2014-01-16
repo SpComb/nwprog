@@ -15,6 +15,17 @@ struct client {
 };
 
 /*
+ * Contents of request sent by client..
+ */
+struct client_request {
+	const struct url *url;
+	const char *method;
+
+	size_t content_length;
+	FILE *content_file;
+};
+
+/*
  * Attempt to connect to the given server.
  */
 int client_connect (struct client *client, const char *host, const char *port)
@@ -60,26 +71,31 @@ int client_open (struct client *client, const struct url *url)
 	return 0;
 }
 
-int client_request_headers (struct client *client, const struct url *url, size_t content_length)
+// XXX: this function exists only for the logging prefix atm
+int client_request_headers (struct client *client, const struct client_request *request)
 {
 	int err = 0;
 
-	log_info("\t%20s: %s", "Host", url->path);
-	err |= http_client_request_header(client->http, "Host", url->host);
+	log_info("\t%20s: %s", "Host", request->url->path);
+	err |= http_client_request_header(client->http, "Host", request->url->host);
 
-	if (content_length) {
-		log_info("\t%20s: %zu", "Content-Length", content_length);
-		err |= http_client_request_headerf(client->http, "Content-length", "%zu", content_length);
+	if (request->content_length) {
+		log_info("\t%20s: %zu", "Content-Length", request->content_length);
+		err |= http_client_request_headerf(client->http, "Content-length", "%zu", request->content_length);
 	}
 
 	return err;
 }
 
+/*
+ * Write contents of FILE to request.
+ */
 int client_request_file (struct client *client, size_t content_length, FILE *file)
 {
 	char buf[512], *bufp;
 	size_t ret, len = sizeof(buf);
 
+	// TODO: respect content_length
 	do {
 		if ((ret = fread(buf, 1, sizeof(buf), file)) < 0) {
 			log_pwarning("fread");
@@ -109,26 +125,19 @@ int client_request_file (struct client *client, size_t content_length, FILE *fil
 	} while (true);
 }
 
-int client_response_header (struct client *client, const char *header, const char *value)
-{
-	log_info("\t%20s: %s", header, value);
-
-	return 0;
-}
-
-static int client_request (struct client *client, const struct url *url, const char *method, size_t content_length, FILE *file)
+static int client_request (struct client *client, const struct client_request *request)
 {
 	int err;
 
 	// request
-	log_info("%s http://%s/%s", method, sockpeer_str(client->sock), url->path);
+	log_info("%s http://%s/%s", request->method, sockpeer_str(client->sock), request->url->path);
 
-	if ((err = http_client_request_start_path(client->http, method, "/%s", url->path))) {
+	if ((err = http_client_request_start_path(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");
 		return err;
 	}
 
-	if ((err = client_request_headers(client, url, content_length))) {
+	if ((err = client_request_headers(client, request))) {
 		log_error("error sending request headers");
 		return err;
 	}
@@ -138,11 +147,43 @@ static int client_request (struct client *client, const struct url *url, const c
 		return err;
 	}
 
-	if (file && (err = client_request_file(client, content_length, file)))
+	if (request->content_file && (err = client_request_file(client, request->content_length, request->content_file)))
 		return err;
 
 	log_debug("end-of-request");
 
+	return 0;
+}
+
+int client_response_header (struct client *client, const char *header, const char *value)
+{
+	log_info("\t%20s: %s", header, value);
+
+	return 0;
+}
+
+/*
+ * Write contents of response to FILE.
+ */
+static int client_response_file (struct client *client, FILE *file)
+{
+	char buf[512];
+	size_t len = sizeof(buf), ret;
+	int err;
+
+	while (!(err = http_client_response_body(client->http, buf, &len))) {
+		// copy to stdout
+		if ((ret = fwrite(buf, len, 1, stdout)) != 1) {
+			log_pwarning("fwrite");
+			return -1;
+		}
+	}
+
+	if (err < 0) {
+		log_error("error reading response body");
+		return err;
+	}
+	
 	return 0;
 }
 
@@ -173,22 +214,8 @@ static int client_response (struct client *client)
 	}
 
 	// body
-	char buf[512];
-	size_t len = sizeof(buf);
-	int ret;
-
-	while (!(err = http_client_response_body(client->http, buf, &len))) {
-		// copy to stdout
-		if ((ret = fwrite(buf, len, 1, stdout)) != 1) {
-			log_pwarning("fwrite");
-			return -1;
-		}
-	}
-
-	if (err < 0) {
-		log_error("error reading response body");
+	if ((err = client_response_file(client, stdout)))
 		return err;
-	}
 	
 	log_debug("end-of-response");
 
@@ -198,9 +225,14 @@ static int client_response (struct client *client)
 int client_get (struct client *client, const struct url *url)
 {
 	int err;
-	
+
 	// request
-	if ((err = client_request(client, url, "GET", 0, NULL)))
+	struct client_request request = {
+		.url	= url,
+		.method	= "GET",
+	};
+	
+	if ((err = client_request(client, &request)))
 		return err;
 
 	// response	
@@ -233,7 +265,15 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 	}
 	
 	// request
-	if ((err = client_request(client, url, "PUT", content_length, file)))
+	struct client_request request = {
+		.url			= url,
+		.method			= "PUT",
+
+		.content_length	= content_length,
+		.content_file	= file,
+	};
+
+	if ((err = client_request(client, &request)))
 		return err;
 
 	// response	
