@@ -63,7 +63,7 @@ error:
 	return -1;
 }
 
-static int http_write (struct http *http, const char *buf, size_t *lenp)
+int http_write_buf (struct http *http, const char *buf, size_t *lenp)
 {
 	size_t ret;
 
@@ -77,7 +77,7 @@ static int http_write (struct http *http, const char *buf, size_t *lenp)
 	return 0;
 }
 
-static int http_vwrite (struct http *http, const char *fmt, va_list args)
+int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
 	char buf[HTTP_LINE];
 	int ret;
@@ -109,7 +109,7 @@ static int http_vwrite (struct http *http, const char *fmt, va_list args)
 	return 0;
 }
 
-static int http_writef (struct http *http, const char *fmt, ...)
+int http_writef (struct http *http, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -312,17 +312,7 @@ int http_write_headers (struct http *http)
 {
 	return http_write_line(http, "");
 }
-/*
- * Send (part of) a request body.
- *
- * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
- *
- * Returns 1 on EOF, <0 on error.
- */
-int http_write_raw (struct http *http, char *buf, size_t *lenp)
-{
-	return http_write(http, buf, lenp);
-}
+
 
 int http_write_file (struct http *http, FILE *file, size_t content_length)
 {
@@ -364,7 +354,7 @@ int http_write_file (struct http *http, FILE *file, size_t content_length)
 		size_t buflen = len;
 		
 		while (len) {
-			if (http_write(http, bufp, &buflen)) {
+			if (http_write_buf(http, bufp, &buflen)) {
 				log_error("error writing request body");
 				return -1;
 			}

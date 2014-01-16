@@ -31,6 +31,22 @@ enum http_status {
 int http_create (struct http **httpp, int sock);
 
 /*
+ * Send (part of) a request body.
+ *
+ * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
+ *
+ * Returns 1 on EOF, <0 on error.
+ */
+int http_write_buf (struct http *http, const char *buf, size_t *lenp);
+
+/*
+ * Write formatted data, as part of the message body.
+ */
+int http_vwrite (struct http *http, const char *fmt, va_list args);
+int http_writef (struct http *http, const char *fmt, ...)
+	__attribute((format (printf, 2, 3)));
+
+/*
  * Send a HTTP request line.
  */
 int http_write_request (struct http *http, const char *method, const char *fmt, ...)
