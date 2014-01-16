@@ -1,4 +1,6 @@
 #include "server/server.h"
+#include "server/static.h"
+
 #include "common/log.h"
 #include "common/url.h"
 
@@ -9,6 +11,7 @@
 
 struct options {
 	const char *iam;
+	const char *S;
 };
 
 static const struct option main_options[] = {
@@ -18,6 +21,7 @@ static const struct option main_options[] = {
 	{ "debug",		0,	NULL,		'd'	},
 
 	{ "iam",		1,	NULL,		'I' },
+	{ "static",		1,	NULL,		'S' },
 	{ }
 };
 
@@ -30,7 +34,9 @@ void help (const char *argv0) {
 			"	-v --verbose       More output\n"
 			"	-d --debug         Debug output\n"
 			"\n"
-			"	-I --iam=username  Send Iam header\n"
+			"	-I --iam=username  	Send Iam header\n"
+			"\n"
+			"	-S --static=path	Serve static files\n"
 			"\n"
 	, argv0);
 }
@@ -38,6 +44,7 @@ void help (const char *argv0) {
 int server (const struct options *options, const char *arg)
 {
 	struct server *server = NULL;
+	struct server_static *server_static = NULL;
 	struct urlbuf urlbuf;
 	int err, ret = 0;
 
@@ -47,12 +54,23 @@ int server (const struct options *options, const char *arg)
 		goto error;
 	}
 
-	log_info("host=%s port=%s iam=%s arg=%s", urlbuf.url.host, urlbuf.url.port, options->iam, arg);
+	log_info("%s: host=%s port=%s path=%s iam=%s", arg, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path, options->iam);
 
-	if (server_create(&server, urlbuf.url.host, urlbuf.url.port)) {
+	if ((err = server_create(&server, urlbuf.url.host, urlbuf.url.port))) {
 		log_fatal("server_create %s %s", urlbuf.url.host, urlbuf.url.port);
-		ret = 1;
 		goto error;
+	}
+
+	if (options->S) {
+		if ((err = server_static_create(&server_static, options->S))) {
+			log_fatal("server_static_create: %s", options->S);
+			goto error;
+		}
+
+		if ((err = server_static_add(server_static, server, urlbuf.url.path))) {
+			log_fatal("server_static_add: %s", "/");
+			goto error;
+		}
 	}
 
 	// XXX: mainloop
@@ -73,6 +91,9 @@ error:
 	if (server)
 		server_destroy(server);
 
+	if (server_static)
+		server_static_destroy(server_static);
+
 	return ret;
 }
 
@@ -85,7 +106,7 @@ int main (int argc, char **argv)
 		.iam	= getlogin(),
 	};
 
-	while ((opt = getopt_long(argc, argv, "hqvdI:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdI:S:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -106,6 +127,10 @@ int main (int argc, char **argv)
             case 'I':
                 options.iam = optarg;
                 break;
+			
+			case 'S':
+				options.S = optarg;
+				break;
 
 			default:
 				help(argv[0]);
