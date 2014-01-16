@@ -4,10 +4,14 @@ import BaseHTTPServer
 
 class Handler (BaseHTTPServer.BaseHTTPRequestHandler) :
 	def do_GET (self) :
+		data = "Hello World\r\n"
+
 		self.send_response(200, "OK")
 		self.send_header("X-Test", "Testing")
+		self.send_header('Content-Length', len(data))
 		self.end_headers()
-		self.wfile.write("Data\r\n")
+
+		self.wfile.write(data)
 
 	def do_PUT (self) :
 		content_length = self.headers.get('Content-Length')
