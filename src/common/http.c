@@ -369,3 +369,11 @@ int http_client_response_body (struct http *http, char *buf, size_t *lenp)
 {
 	return http_read(http, buf, lenp);
 }
+
+void http_destroy (struct http *http)
+{
+    if (fclose(http->file))
+        log_warning("fclose");
+
+    free(http);
+}

@@ -405,5 +405,8 @@ void client_destroy (struct client *client)
         free(header);
     }
 
+    if (client->http)
+        http_destroy(client->http);
+
 	free(client);
 }

@@ -59,4 +59,9 @@ int http_client_response_header (struct http *http, const char **headerp, const 
  */
 int http_client_response_body (struct http *http, char *buf, size_t *lenp);
 
+/*
+ * Release all associated resources.
+ */
+void http_destroy (struct http *http);
+
 #endif
