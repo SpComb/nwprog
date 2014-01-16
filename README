@@ -18,13 +18,18 @@ Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_
 	$ ./bin/client -h
 	Usage: ./bin/client [options] <url>
 
-			-h      --help                  Display this text
-			-q      --quiet                 Less output
-			-v      --verbose               More output
-			-d      --debug                 Debug output
+			-h --help          Display this text
+			-q --quiet         Less output
+			-v --verbose       More output
+			-d --debug         Debug output
 
-			-G      --get=file              GET to file
-			-P      --put=file              PUT from file
+			-G --get=file      GET to file
+			-P --put=file      PUT from file
+
+			-I --iam=username  Send Iam header
+
+The client will by default send an additional Iam: header in the request, containing the login username of the system
+user running the client.
 
 ### Examples
 
