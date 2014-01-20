@@ -11,7 +11,7 @@
 #include <sys/queue.h>
 
 struct client {
-    struct tcp_stream *tcp;
+    struct tcp *tcp;
 	struct http *http;
 
 	/* Settings */
@@ -114,7 +114,7 @@ int client_open (struct client *client, const struct url *url)
     }
 
 	// http
-	if ((err = http_create(&client->http, tcp_stream_read(client->tcp), tcp_stream_write(client->tcp))))
+	if ((err = http_create(&client->http, tcp_read_stream(client->tcp), tcp_write_stream(client->tcp))))
 		return err;
 
 	return 0;
@@ -147,7 +147,7 @@ static int client_request (struct client *client, const struct client_request *r
 	int err;
 
 	// request
-	log_info("%s http://%s/%s", request->method, tcp_stream_peer_str(client->tcp), request->url->path);
+	log_info("%s http://%s/%s", request->method, tcp_peer_str(client->tcp), request->url->path);
 
 	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");

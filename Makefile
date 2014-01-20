@@ -23,7 +23,7 @@ doc: doc/README.html doc/diary.html
 bin/client: build/src/client.o \
 	build/src/client/client.o \
 	build/src/common/tcp.o build/src/common/tcp_client.o \
-	build/src/common/sock.o \
+	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \
 	build/src/common/util.o \
