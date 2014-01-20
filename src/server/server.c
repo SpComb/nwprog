@@ -15,7 +15,15 @@
 struct server {
     struct event_main *event_main;
 
+	TAILQ_HEAD(server_listens, server_listen) listens;
 	TAILQ_HEAD(server_handlers, server_handler_item) handlers;
+};
+
+struct server_listen {
+    struct server *server;
+    struct tcp_server *tcp;
+
+    TAILQ_ENTRY(server_listen) server_listens;
 };
 
 struct server_handler_item {
@@ -45,11 +53,6 @@ struct server_client {
 	int err;
 };
 
-/*
- * Handle client request.
- */
-void server_client (struct tcp_server *tcp_server, struct tcp_stream *stream, void *ctx);
-
 int server_create (struct event_main *event_main, struct server **serverp)
 {
 	struct server *server = NULL;
@@ -59,6 +62,7 @@ int server_create (struct event_main *event_main, struct server **serverp)
 		return -1;
 	}
 
+	TAILQ_INIT(&server->listens);
 	TAILQ_INIT(&server->handlers);
 
     server->event_main = event_main;
@@ -66,19 +70,6 @@ int server_create (struct event_main *event_main, struct server **serverp)
 	*serverp = server;
 
 	return 0;
-}
-
-int server_listen (struct server *server, const char *host, const char *port)
-{
-    struct tcp_server *tcp;
-
-    if (tcp_server(server->event_main, &tcp, host, port, server_client, server)) {
-        log_warning("tcp_server");
-        return -1;
-    }
-
-    // XXX; should we perhaps store tcp_server somewhere?
-    return 0;
 }
 
 int server_add_handler (struct server *server, const char *method, const char *path, struct server_handler *handler)
@@ -381,20 +372,23 @@ error:
 	return err;
 }
 
-// TODO: multiple requests
-void server_client (struct tcp_server *tcp_server, struct tcp_stream *stream, void *ctx)
+/*
+ * Handle one client.
+ *
+ * TODO: multiple requests
+ */
+int server_client (struct server *server, struct tcp_stream *tcp)
 {
-    struct server *server = ctx;
 	struct server_client client = { };
     int err = 0;
 
 	// http
-	if ((err = http_create(&client.http, tcp_stream_read(stream), tcp_stream_write(stream)))) {
+	if ((err = http_create(&client.http, tcp_stream_read(tcp), tcp_stream_write(tcp)))) {
 		log_perror("http_create");
 		goto error;
 	}
 
-    if ((err = server_client_request(server, &client))) {
+    if ((err = server_client_request(server, &client)) < 0) {
         log_warning("server_client_request");
         goto error;
     }
@@ -403,7 +397,64 @@ error:
 	if (client.http)
 		http_destroy(client.http);
     
-    tcp_stream_destroy(stream);
+    // TODO: clean close vs reset?
+    tcp_stream_destroy(tcp);
+
+    return -1;
+}
+
+void server_listen_task (void *ctx)
+{
+    struct server_listen *listen = ctx;
+
+    struct tcp_stream *tcp;
+    int err;
+
+    while (true) {
+        if ((err = tcp_server_accept(listen->tcp, &tcp))) {
+            log_fatal("tcp_server_accept");
+            break;
+        }
+        
+        if ((err = server_client(listen->server, tcp))) {
+            log_warning("server_client");
+        }
+    }
+
+    tcp_server_destroy(listen->tcp);
+    free(listen);
+}
+
+int server_listen (struct server *server, const char *host, const char *port)
+{
+    struct server_listen *listen;
+
+    if (!(listen = calloc(1, sizeof(*listen)))) {
+        log_perror("calloc");
+        return -1;
+    }
+
+    listen->server = server;
+
+    if (tcp_server(server->event_main, &listen->tcp, host, port)) {
+        log_warning("tcp_server");
+        goto error;
+    }
+
+    if (event_start(server->event_main, server_listen_task, listen)) {
+        log_warning("event_start");
+        goto error;
+    }
+
+    return 0;
+
+error:
+    if (listen->tcp)
+        tcp_server_destroy(listen->tcp);
+
+    free(listen);
+
+    return -1;
 }
 
 void server_destroy (struct server *server)

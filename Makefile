@@ -3,7 +3,7 @@
 CFLAGS = -g -Wall
 CPPFLAGS = -Isrc -std=gnu99
 LDFLAGS = 
-LIBS = 
+LIBS = -lpcl
 
 SRC_DIRS = $(filter %/,$(wildcard src/*/))
 SRC_COMMON = $(wildcard src/common/*.c)
@@ -22,7 +22,7 @@ doc: doc/README.html doc/diary.html
 
 bin/client: build/src/client.o \
 	build/src/client/client.o \
-	build/src/common/tcp.o build/src/common/tcp_client.o build/src/common/tcp_stream.o \
+	build/src/common/tcp.o build/src/common/tcp_client.o \
 	build/src/common/sock.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \
@@ -32,7 +32,7 @@ bin/client: build/src/client.o \
 bin/server: build/src/server.o \
 	build/src/server/server.o \
 	build/src/server/static.o \
-	build/src/common/tcp.o build/src/common/tcp_server.o build/src/common/tcp_stream.o \
+	build/src/common/tcp.o build/src/common/tcp_server.o \
 	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \

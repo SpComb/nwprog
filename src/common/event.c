@@ -2,26 +2,35 @@
 
 #include "common/log.h"
 
-//#include <libpcl.h>
+#include <pcl.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/queue.h>
 
 struct event_main {
+    struct event_task *task;
+
     TAILQ_HEAD(event_main_events, event) events;
 };
 
 struct event {
     struct event_main *event_main;
-
+    
     int fd;
     int flags;
 
-    event_handler *func;
-    void *ctx;
+    struct event_task *task;
 
     TAILQ_ENTRY(event) event_main_events;
+};
+
+struct event_task {
+    struct event_main *event_main;
+
+    const char *name;
+
+    coroutine_t co;
 };
 
 int event_main_create (struct event_main **event_mainp)
@@ -39,7 +48,7 @@ int event_main_create (struct event_main **event_mainp)
     return 0;
 }
 
-int event_create (struct event_main *event_main, struct event **eventp, int fd, event_handler *func, void *ctx)
+int event_create (struct event_main *event_main, struct event **eventp, int fd)
 {
     struct event *event;
 
@@ -50,9 +59,8 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd, 
     
     event->event_main = event_main;
     event->fd = fd;
-    event->func = func;
-    event->ctx = ctx;
 
+    // ok
     TAILQ_INSERT_TAIL(&event_main->events, event, event_main_events);
 
     *eventp = event;
@@ -60,10 +68,62 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd, 
     return 0;
 }
 
-int event_set (struct event *event, int flags)
+void event_switch (struct event_main *event_main, struct event_task *task)
 {
-    event->flags = flags;
+    struct event_task *main_task = event_main->task;
+
+    log_debug("%s -> %s", main_task ? main_task->name : "*", task->name);
+
+    event_main->task = task;
+    co_call(task->co);
+    event_main->task = main_task;
     
+    log_debug("%s <- %s", main_task ? main_task->name : "*", task->name);
+}
+
+int _event_start (struct event_main *event_main, const char *name, event_task_func *func, void *ctx)
+{
+    struct event_task *task;
+
+    if (!(task = calloc(1, sizeof(*task)))) {
+        log_perror("calloc");
+        return -1;
+    }
+
+    task->name = name;
+
+    if (!(task->co = co_create(func, ctx, NULL, EVENT_TASK_SIZE))) {
+        log_perror("co_create");
+        goto error;
+    }
+
+    event_switch(event_main, task);
+
+    return 0;
+
+error:
+    free(task);
+
+    return -1;
+}
+
+int event_yield (struct event *event, int flags)
+{
+    struct event_task *task = event->event_main->task;
+
+    if (event->task) {
+        log_fatal("%d overriding %s with %s", event->fd, event->task->name, task->name);
+    }
+    
+    event->task = task;
+    event->flags = flags;
+
+    log_debug("<- %s:%d", task->name, event->fd);
+
+    co_resume();
+
+    log_debug("-> %s:%d", task->name, event->fd);
+     
     return 0;
 }
 
@@ -114,8 +174,14 @@ int event_main_run (struct event_main *event_main)
             if (FD_ISSET(event->fd, &write))
                 flags |= EVENT_WRITE;
 
-            if (flags)
-                event->func(event, flags, event->ctx);
+            if (flags) {
+                struct event_task *task = event->task;
+
+                event->flags = 0;
+                event->task = NULL;
+
+                event_switch(event_main, task);
+            }
         }
     }
 }

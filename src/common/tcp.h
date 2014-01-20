@@ -30,7 +30,19 @@ int tcp_listen (int *sockp, const char *host, const char *port, int backlog);
 /*
  * Run a server for accepting connections..
  */
-int tcp_server (struct event_main *event_main, struct tcp_server **serverp, const char *host, const char *port, tcp_server_handler *func, void *ctx);
+int tcp_server (struct event_main *event_main, struct tcp_server **serverp, const char *host, const char *port);
+
+/*
+ * Accept a new incoming request.
+ *
+ * This will event_yield on the server socket..
+ */
+int tcp_server_accept (struct tcp_server *server, struct tcp_stream **streamp);
+
+/*
+ * Release all resources.
+ */ 
+void tcp_server_destroy (struct tcp_server *server);
 
 /*
  * Connect to a server..
@@ -39,6 +51,9 @@ int tcp_server (struct event_main *event_main, struct tcp_server **serverp, cons
  */
 int tcp_client (struct tcp_stream **streamp, const char *host, const char *port);
 
+/*
+ * TCP connetcions interface.
+ */ 
 // XXX
 int tcp_stream_create (struct event_main *event_main, struct tcp_stream **streamp, int sock);
 

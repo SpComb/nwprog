@@ -2,117 +2,93 @@
 
 #include "common/log.h"
 #include "common/sock.h"
+#include "common/stream.h"
 
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
-int tcp_connect (int *sockp, const char *host, const char *port)
-{
-	int err;
-	struct addrinfo hints = {
-		.ai_flags		= 0,
-		.ai_family		= AF_UNSPEC,
-		.ai_socktype	= SOCK_STREAM,
-		.ai_protocol	= 0,
-	};
-	struct addrinfo *addrs, *addr;
-	int sock = -1;
-
-	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
-		log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
-		return -1;
-	}
-
-	for (addr = addrs; addr; addr = addr->ai_next) {
-		if ((sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
-			log_pwarning("socket(%d, %d, %d)", addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-			continue;
-		}
-
-		log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
-
-		if ((err = connect(sock, addr->ai_addr, addr->ai_addrlen)) < 0) {
-			log_pwarning("connect");
-			close(sock);
-			sock = -1;
-			continue;
-		}
-
-		log_info("%s <- %s", sockpeer_str(sock), sockname_str(sock));
-
-		break;
-	}
-
-	freeaddrinfo(addrs);
-
-    if (sock < 0)
-        return -1;
-
-    *sockp = sock;
-    return 0;
-}
-
-int tcp_listen (int *sockp, const char *host, const char *port, int backlog)
-{
-	int err;
-	struct addrinfo hints = {
-		.ai_flags		= AI_PASSIVE,
-		.ai_family		= AF_UNSPEC,
-		.ai_socktype	= SOCK_STREAM,
-		.ai_protocol	= 0,
-	};
-	struct addrinfo *addrs, *addr;
-	int sock = -1;
-    
-	// translate empty string to NULL
-	if (!*host)
-		host = NULL;
-
-	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
-		log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
-		return -1;
-	}
-
-	for (addr = addrs; addr; addr = addr->ai_next) {
-		if ((sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
-			log_pwarning("socket(%d, %d, %d)", addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-			continue;
-		}
-
-		log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
-		
-		// bind to listen address/port
-		if ((err = bind(sock, addr->ai_addr, addr->ai_addrlen)) < 0) {
-			log_pwarning("bind");
-			close(sock);
-			sock = -1;
-			continue;
-		}
-
-		log_info("%s", sockname_str(sock));
-
-		break;
-	}
-
-	freeaddrinfo(addrs);
-
-	if (sock < 0)
-		return -1;
+struct tcp_stream {
+	int sock;
 	
-	// mark as listening
-	if ((err = listen(sock, backlog))) {
-		log_perror("listen");
-		close(sock);
-		sock = -1;
-	}
+	struct event *event;
 
-    if (sock < 0)
-        return -1;
-    
-    *sockp = sock;
+	struct stream *read, *write;
+};
 
-    return 0;
+void tcp_stream_event (struct event *event, int flags, void *ctx)
+{
+	log_info("flags=%#02x", flags);
 }
 
+int tcp_stream_create (struct event_main *event_main, struct tcp_stream **streamp, int sock)
+{
+	struct tcp_stream *stream;
+
+	if (!(stream = calloc(1, sizeof(*stream)))) {
+		log_perror("calloc");
+		return -1;
+	}
+
+	stream->sock = sock;
+/*
+	if (event_create(server->event_main, &stream->event, sock, tcp_stream_event, stream)) {
+		log_warning("event_create");
+		goto error;
+	}
+*/
+	if (stream_create(&stream->read, sock, TCP_STREAM_SIZE)) {
+		log_warning("stream_create read");
+		goto error;
+	}
+	
+	if (stream_create(&stream->write, sock, TCP_STREAM_SIZE)) {
+		log_warning("stream_create write");
+		goto error;
+	}
+/*
+	if (event_set(stream->event, EVENT_READ)) {
+		log_warning("event_set");
+		goto error;
+	}
+*/
+
+	*streamp = stream;
+
+	return 0;
+error:
+	tcp_stream_destroy(stream);
+	return -1;
+}
+
+struct stream * tcp_stream_read (struct tcp_stream *stream)
+{
+    return stream->read;
+}
+
+struct stream * tcp_stream_write (struct tcp_stream *stream)
+{
+    return stream->write;
+}
+
+const char * tcp_stream_sock_str (struct tcp_stream *stream)
+{
+	return sockname_str(stream->sock);
+}
+
+const char * tcp_stream_peer_str (struct tcp_stream *stream)
+{
+	return sockpeer_str(stream->sock);
+}
+
+void tcp_stream_destroy (struct tcp_stream *stream)
+{
+	if (stream->write)
+		stream_destroy(stream->write);
+
+	if (stream->read)
+		stream_destroy(stream->read);
+
+    if (stream->sock >= 0)
+        close(stream->sock);
+
+	free(stream);
+}
