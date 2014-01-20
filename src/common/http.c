@@ -2,6 +2,7 @@
 
 #include "common/log.h"
 #include "common/parse.h"
+#include "common/stream.h"
 #include "common/util.h"
 
 // vsnprintf with -gnu99
@@ -13,8 +14,7 @@
 #include <string.h>
 
 struct http {
-	FILE *file;
-	char buf[HTTP_LINE];
+    struct stream *read, write;
 
 	const char *version;
 };
@@ -43,10 +43,15 @@ int http_create (struct http **httpp, int fd)
 		log_perror("calloc");
 		goto error;
 	}
-
-	if (!(http->file = fdopen(fd, "a+"))) {
-		log_perror("fdopen");
-		goto error;
+    
+    if (stream_create(&http->read, fd, HTTP_LINE)) {
+        log_error("stream_create");
+        goto error;
+	}
+    
+    if (stream_create(&http->write, fd, HTTP_LINE)) {
+        log_error("stream_create");
+        goto error;
 	}
 
 	http->version = HTTP_VERSION;
@@ -65,48 +70,12 @@ error:
 
 int http_write_buf (struct http *http, const char *buf, size_t *lenp)
 {
-	size_t ret;
-
-	if ((ret = fwrite(buf, 1, *lenp, http->file)) < 0) {
-		log_pwarning("fwrite");
-		return -1;
-	}
-
-	*lenp = ret;
-	
-	return 0;
+    return stream_write(http->write, buf, *lenp);
 }
 
 int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
-	char buf[HTTP_LINE];
-	int ret;
-
-	if ((ret = vsnprintf(buf, sizeof(buf), fmt, args)) < 0)
-		return -1;
-
-	if (ret >= sizeof(buf)) {
-		log_warning("overflow: %d", ret);
-		return 1;
-	}
-
-	if (!ret) {
-		log_debug("''");
-		return 0;
-	}
-	
-	log_debug("'%s'", strdump(buf));
-	
-	if ((ret = fwrite(buf, ret, 1, http->file)) < 0) {
-		log_pwarning("fwrite");
-		return -1;
-
-	} else if (!ret) {
-		log_pwarning("fwrite: EOF");
-		return 1;
-	}
-
-	return 0;
+    return stream_vprintf(http->write, fmt, args);
 }
 
 int http_writef (struct http *http, const char *fmt, ...)
@@ -115,7 +84,7 @@ int http_writef (struct http *http, const char *fmt, ...)
 	int err;
 
 	va_start(args, fmt);
-	err = http_vwrite(http, fmt, args);
+    err = stream_vprintf(http->write, fmt, args);
 	va_end(args);
 	
 	return err;
@@ -130,19 +99,14 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 	int err;
 	
 	va_start(args, fmt);
-	err = http_vwrite(http, fmt, args);
+    err = stream_vprintf(http->write, fmt, args);
 	va_end(args);
 	
 	if (err)
 		return err;
 
-	if ((err = http_writef(http, "\r\n")))
+	if ((err = stream_printf(http->write, "\r\n")))
 		return err;
-
-	if (fflush(http->file)) {
-		log_pwarning("fflush");
-		return -1;
-	}
 
 	return 0;
 }
@@ -154,20 +118,17 @@ static int http_write_line (struct http *http, const char *fmt, ...)
  */
 static int http_read (struct http *http, char *buf, size_t *lenp)
 {
-	size_t ret;
+    char *inbuf;
+    int err;
 
-	if ((ret = fread(buf, 1, *lenp, http->file)) > 0) {
-		*lenp = ret;
+    if ((err = stream_read(http->read, &inbuf, lenp)))
+        return err;
+    
+    log_debug("%zu", *lenp);
 
-		return 0;
+    memcpy(buf, inbuf, *lenp);
 
-	} else if (feof(http->file)) {
-		return 400;
-
-	} else {
-		log_pwarning("fread");
-		return -1;
-	}
+    return 0;
 }
 
 /*
@@ -179,37 +140,14 @@ static int http_read (struct http *http, char *buf, size_t *lenp)
  */
 static int http_read_line (struct http *http, char **linep)
 {
-	char *c;
+    int err;
 
-	if (!fgets(http->buf, sizeof(http->buf), http->file)) {
-		// EOF?
-		if (feof(http->file)) {
-			return 400;
-		}
+    if ((err = stream_read_line(http->read, linep)))
+        return err;
 
-		log_perror("fgets");
-		return -1;
-	}
-	
-	// rstrip \r\n
-	c = &http->buf[strlen(http->buf)];
+    log_debug("%s", *linep);
 
-	if (*--c != '\n') {
-		log_warning("truncated line");
-		return -1;
-	}
-
-	if (*--c != '\r') {
-		log_warning("truncated line");
-		return -1;
-	}
-
-	*c = '\0';
-	*linep = http->buf;
-
-	log_debug("%s", http->buf);
-
-	return 0;
+    return 0;
 }
 
 int http_parse_header (char *line, const char **headerp, const char **valuep)
@@ -522,8 +460,7 @@ int http_read_file (struct http *http, FILE *file, size_t content_length)
 
 void http_destroy (struct http *http)
 {
-    if (fclose(http->file))
-        log_warning("fclose");
-
+    stream_destroy(http->read);
+    stream_destroy(http->write);
     free(http);
 }
