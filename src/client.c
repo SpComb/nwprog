@@ -51,6 +51,11 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 		goto error;
 	}
 
+	// handle empty path
+	if (!urlbuf.url.path) {
+		urlbuf.url.path = "";
+	}
+
 	if (get && !(get_file = fopen(get, "w"))) {
 		log_error("fopen %s", get);
 		log_fatal("failed to open --get file for writing");
