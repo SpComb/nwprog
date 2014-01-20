@@ -2,10 +2,12 @@
 
 #include "common/log.h"
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 int sockaddr_buf (char *buf, size_t buflen, const struct sockaddr *sa, socklen_t salen)
 {
@@ -71,4 +73,21 @@ const char * sockpeer_str (int sock)
 
 	return buf;
 
+}
+
+int sock_nonblocking (int sock)
+{
+	int flags;
+
+	if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
+		log_perror("fcntl");
+		return -1;
+	}
+
+	if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+		log_perror("fcntl");
+		return -1;
+	}
+
+	return 0;
 }

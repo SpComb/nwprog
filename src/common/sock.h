@@ -19,9 +19,15 @@ const char * sockaddr_str (const struct sockaddr *sa, socklen_t salen);
  * Return a (static) pointer to the local host:serv for the given socket.
  */
 const char * sockname_str (int sock);
+
 /*
  * Return a (static) pointer to the remote host:serv for the given socket.
  */
 const char * sockpeer_str (int sock);
+
+/*
+ * Make socket nonblocking
+ */
+int sock_nonblocking (int sock);
 
 #endif
