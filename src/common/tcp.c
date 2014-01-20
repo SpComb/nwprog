@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int tcp_connect (const char *host, const char *port)
+int tcp_connect (int *sockp, const char *host, const char *port)
 {
 	int err;
 	struct addrinfo hints = {
@@ -47,11 +47,14 @@ int tcp_connect (const char *host, const char *port)
 
 	freeaddrinfo(addrs);
 
-	// either -1 or valid
-	return sock;
+    if (sock < 0)
+        return -1;
+
+    *sockp = sock;
+    return 0;
 }
 
-int tcp_listen (const char *host, const char *port, int backlog)
+int tcp_listen (int *sockp, const char *host, const char *port, int backlog)
 {
 	int err;
 	struct addrinfo hints = {
@@ -92,7 +95,7 @@ int tcp_listen (const char *host, const char *port, int backlog)
 	freeaddrinfo(addrs);
 
 	if (sock < 0)
-		return sock;
+		return -1;
 	
 	// mark as listening
 	if ((err = listen(sock, backlog))) {
@@ -101,6 +104,11 @@ int tcp_listen (const char *host, const char *port, int backlog)
 		sock = -1;
 	}
 
-	// either -1 or valid
-	return sock;
+    if (sock < 0)
+        return -1;
+    
+    *sockp = sock;
+
+    return 0;
 }
+
