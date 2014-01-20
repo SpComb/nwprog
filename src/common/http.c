@@ -2,7 +2,6 @@
 
 #include "common/log.h"
 #include "common/parse.h"
-#include "common/stream.h"
 #include "common/util.h"
 
 // vsnprintf with -gnu99
@@ -14,7 +13,7 @@
 #include <string.h>
 
 struct http {
-    struct stream *read, write;
+    struct stream *read, *write;
 
 	const char *version;
 };
@@ -35,7 +34,7 @@ static const char * http_status_str (enum http_status status)
 }
 
 
-int http_create (struct http **httpp, int fd)
+int http_create (struct http **httpp, struct stream *read, struct stream *write)
 {
 	struct http *http = NULL;
 
@@ -43,17 +42,9 @@ int http_create (struct http **httpp, int fd)
 		log_perror("calloc");
 		goto error;
 	}
-    
-    if (stream_create(&http->read, fd, HTTP_LINE)) {
-        log_error("stream_create");
-        goto error;
-	}
-    
-    if (stream_create(&http->write, fd, HTTP_LINE)) {
-        log_error("stream_create");
-        goto error;
-	}
 
+    http->read = read;
+    http->write = write;
 	http->version = HTTP_VERSION;
 	
 	// ok
@@ -460,7 +451,5 @@ int http_read_file (struct http *http, FILE *file, size_t content_length)
 
 void http_destroy (struct http *http)
 {
-    stream_destroy(http->read);
-    stream_destroy(http->write);
     free(http);
 }

@@ -1,6 +1,8 @@
 #ifndef HTTP_H
 #define HTTP_H
 
+#include "common/stream.h"
+
 #include <stddef.h>
 #include <stdio.h>
 
@@ -26,9 +28,11 @@ enum http_status {
 };
 
 /*
- * Create a new HTTP connect using the given socket.
+ * Create a new HTTP connect using the given IO streams.
+ *
+ * Does not take ownership of the streams; they must be destroyed by the caller after http_destroy().
  */
-int http_create (struct http **httpp, int sock);
+int http_create (struct http **httpp, struct stream *read, struct stream *write);
 
 /*
  * Send (part of) a request body.
