@@ -37,4 +37,23 @@ int sock_nonblocking (int sock);
  */
 int sock_accept (int ssock, int *sockp);
 
+/*
+ * Read from a socket.
+ *
+ * Returns *sizep == 0 on EOF.
+ *
+ * Returns 1 on nonblocking, 0 on success, <0 on error.
+ */
+int sock_read (int sock, char *buf, size_t *sizep);
+
+/*
+ * Write to a socket.
+ *
+ * Returns *sizep == 0 on EOF.
+ *
+ * Returns 1 on nonblocking, 0 on success, <0 on error.
+ */
+int sock_write (int sock, const char *buf, size_t *sizep);
+
+
 #endif

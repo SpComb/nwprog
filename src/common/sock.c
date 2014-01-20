@@ -112,3 +112,36 @@ int sock_accept (int ssock, int *sockp)
     }
 }
 
+int sock_read (int sock, char *buf, size_t *sizep)
+{
+    int ret = read(sock, buf, *sizep);
+
+    if (ret >= 0) {
+        *sizep = ret;
+        return 0;
+
+    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return 1;
+
+    } else {
+        log_perror("read");
+        return -1;
+    }
+}
+
+int sock_write (int sock, const char *buf, size_t *sizep)
+{
+    int ret = write(sock, buf, *sizep);
+
+    if (ret >= 0) {
+        *sizep = ret;
+        return 0;
+
+    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return 1;
+
+    } else {
+        log_perror("write");
+        return -1;
+    }
+}
