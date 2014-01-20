@@ -8,16 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-/*
- * Nonblocking buffered IO.
- */
-struct stream {
-    int fd;
-
-    char *buf;
-    size_t size, length, offset;
-};
-
 int stream_create (struct stream **streamp, int fd, size_t size)
 {
     struct stream *stream;
@@ -27,10 +17,23 @@ int stream_create (struct stream **streamp, int fd, size_t size)
         return -1;
     }
 
+    if (stream_init(stream, fd, size))
+        goto error;
+
+    *streamp = stream;
+    return 0;
+
+error:
+    free(stream);
+    return -1;
+}
+
+int stream_init (struct stream *stream, int fd, size_t size)
+{
     // buffer
     if (!(stream->buf = malloc(size))) {
         log_perror("malloc %zu", size);
-        goto error;
+        return -1;
     }
     
     stream->fd = fd;
@@ -38,11 +41,6 @@ int stream_create (struct stream **streamp, int fd, size_t size)
     stream->length = 0;
     stream->offset = 0;
 
-    *streamp = stream;
-    return 0;
-
-error:
-    free(stream);
     return 0;
 }
 

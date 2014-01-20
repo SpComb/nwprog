@@ -5,11 +5,17 @@
 #include <stdarg.h>
 
 /*
- * SOCK_STREAM support..
+ * SOCK_STREAM
  */
-struct stream;
+struct stream {
+    int fd;
+
+    char *buf;
+    size_t size, length, offset;
+};
 
 int stream_create (struct stream **streamp, int fd, size_t size);
+int stream_init (struct stream *stream, int fd, size_t size);
 
 /*
  * Read binary data from the stream.
