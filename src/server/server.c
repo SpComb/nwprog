@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 struct server {
-    struct tcp_server *tcp_server;
+    struct event_main *event_main;
 
 	TAILQ_HEAD(server_handlers, server_handler_item) handlers;
 };
@@ -50,7 +50,7 @@ struct server_client {
  */
 void server_client (struct tcp_server *tcp_server, struct tcp_stream *stream, void *ctx);
 
-int server_create (struct event_main *event_main, struct server **serverp, const char *host, const char *port)
+int server_create (struct event_main *event_main, struct server **serverp)
 {
 	struct server *server = NULL;
 
@@ -59,20 +59,26 @@ int server_create (struct event_main *event_main, struct server **serverp, const
 		return -1;
 	}
 
-    if (tcp_server(event_main, &server->tcp_server, host, port, server_client, server)) {
-        log_warning("tcp_server");
-        goto error;
-    }
-
 	TAILQ_INIT(&server->handlers);
+
+    server->event_main = event_main;
 
 	*serverp = server;
 
 	return 0;
-error:
-	free(server);
+}
 
-	return -1;
+int server_listen (struct server *server, const char *host, const char *port)
+{
+    struct tcp_server *tcp;
+
+    if (tcp_server(server->event_main, &tcp, host, port, server_client, server)) {
+        log_warning("tcp_server");
+        return -1;
+    }
+
+    // XXX; should we perhaps store tcp_server somewhere?
+    return 0;
 }
 
 int server_add_handler (struct server *server, const char *method, const char *path, struct server_handler *handler)

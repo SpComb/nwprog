@@ -15,6 +15,10 @@ struct options {
 	bool daemon;
 	const char *iam;
 	const char *S;
+
+    /* Processed */
+    struct server *server;
+    struct server_static *server_static;
 };
 
 static const struct option main_options[] = {
@@ -46,48 +50,24 @@ void help (const char *argv0) {
 	, argv0);
 }
 
-int server (struct event_main *event_main, const struct options *options, const char *arg)
+int main_listen (struct options *options, const char *arg)
 {
-	struct server *server = NULL;
-	struct server_static *server_static = NULL;
 	struct urlbuf urlbuf;
-	int err, ret = 0;
+	int err;
 
-	if (urlbuf_parse(&urlbuf, arg)) {
+	if ((err = urlbuf_parse(&urlbuf, arg))) {
 		log_fatal("invalid server url: %s", arg);
-		ret = 1;
-		goto error;
+        return err;
 	}
 
 	log_info("%s: host=%s port=%s path=%s iam=%s", arg, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path, options->iam);
 
-	if ((err = server_create(event_main, &server, urlbuf.url.host, urlbuf.url.port))) {
-		log_fatal("server_create %s %s", urlbuf.url.host, urlbuf.url.port);
-		goto error;
-	}
-
-	if (options->S) {
-		if ((err = server_static_create(&server_static, options->S))) {
-			log_fatal("server_static_create: %s", options->S);
-			goto error;
-		}
-
-		if ((err = server_static_add(server_static, server, urlbuf.url.path))) {
-			log_fatal("server_static_add: %s", "/");
-			goto error;
-		}
+	if ((err = server_listen(options->server, urlbuf.url.host, urlbuf.url.port))) {
+		log_fatal("server_listen %s %s", urlbuf.url.host, urlbuf.url.port);
+        return err;
 	}
 
 	return 0;
-
-error:
-	if (server)
-		server_destroy(server);
-
-	if (server_static)
-		server_static_destroy(server_static);
-
-	return ret;
 }
 
 int main (int argc, char **argv)
@@ -140,30 +120,55 @@ int main (int argc, char **argv)
 
 	daemon_init();
 
-    if (event_main_create(&event_main)) {
+    if ((err = event_main_create(&event_main))) {
         log_fatal("event_main_create");
-        return 1;
+        goto error;
     }
 
     // apply
-	while (optind < argc && !err) {
-		if ((err = server(event_main, &options, argv[optind++]))) {
-            log_fatal("server");
-            return 1;
-        }
+	if ((err = server_create(event_main, &options.server))) {
+		log_fatal("server_create");
+        goto error;
 	}
 
+	if (options.S) {
+		if ((err = server_static_create(&options.server_static, options.S))) {
+			log_fatal("server_static_create: %s", options.S);
+			goto error;
+		}
+
+		if ((err = server_static_add(options.server_static, options.server, "/"))) {
+			log_fatal("server_static_add: %s", "/");
+			goto error;
+		}
+	}
+
+	while (optind < argc && !err) {
+		if ((err = main_listen(&options, argv[optind++]))) {
+            log_fatal("server");
+			goto error;
+        }
+	}
 
     // run
 	if (options.daemon) {
 		daemon_start();
 	}
 
-    if (event_main_run(event_main)) {
+    if ((err = event_main_run(event_main))) {
         log_fatal("event_main_run");
-        return 1;
+        goto error;
     }
 
-    // done
-    return 0;
+error:
+	if (options.server)
+		server_destroy(options.server);
+
+	if (options.server_static)
+		server_static_destroy(options.server_static);
+    
+    if (err)
+        return 1;
+    else 
+        return 0;
 }

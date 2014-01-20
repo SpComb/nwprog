@@ -27,9 +27,14 @@ struct server_handler {
 };
 
 /*
- * Initialize a new server that listens on the given host/port.
+ * Initialize a new server.
  */
-int server_create (struct event_main *event_main, struct server **serverp, const char *host, const char *port);
+int server_create (struct event_main *event_main, struct server **serverp);
+
+/*
+ * Listen on given host/port
+ */
+int server_listen (struct server *server, const char *host, const char *port);
 
 /*
  * Add a server handler for requests.
