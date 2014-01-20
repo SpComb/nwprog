@@ -5,17 +5,24 @@
 #include <stdarg.h>
 
 /*
- * SOCK_STREAM
+ * Buffered SOCK_STREAMs
  */
+struct stream_type {
+    int (*read)(char *buf, size_t *sizep, void *ctx);
+    int (*write)(const char *buf, size_t *sizep, void *ctx);
+};
+
 struct stream {
-    int fd;
+    const struct stream_type *type;
 
     char *buf;
     size_t size, length, offset;
+
+    void *ctx;
 };
 
-int stream_create (struct stream **streamp, int fd, size_t size);
-int stream_init (struct stream *stream, int fd, size_t size);
+int stream_create (const struct stream_type *type, struct stream **streamp, size_t size, void *ctx);
+int stream_init (const struct stream_type *type, struct stream *stream, size_t size, void *ctx);
 
 /*
  * Read binary data from the stream.

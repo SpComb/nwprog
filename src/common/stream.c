@@ -8,7 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 
-int stream_create (struct stream **streamp, int fd, size_t size)
+int stream_create (const struct stream_type *type, struct stream **streamp, size_t size, void *ctx)
 {
     struct stream *stream;
 
@@ -17,7 +17,7 @@ int stream_create (struct stream **streamp, int fd, size_t size)
         return -1;
     }
 
-    if (stream_init(stream, fd, size))
+    if (stream_init(type, stream, size, ctx))
         goto error;
 
     *streamp = stream;
@@ -28,7 +28,7 @@ error:
     return -1;
 }
 
-int stream_init (struct stream *stream, int fd, size_t size)
+int stream_init (const struct stream_type *type, struct stream *stream, size_t size, void *ctx)
 {
     // buffer
     if (!(stream->buf = malloc(size))) {
@@ -36,10 +36,11 @@ int stream_init (struct stream *stream, int fd, size_t size)
         return -1;
     }
     
-    stream->fd = fd;
+    stream->type = type;
     stream->size = size;
     stream->length = 0;
     stream->offset = 0;
+    stream->ctx = ctx;
 
     return 0;
 }
@@ -63,10 +64,11 @@ int _stream_shift (struct stream *stream)
 
 /*
  * Read into stream from fd.
+ *
+ * Returns 1 on EOF.
  */
 int _stream_read (struct stream *stream)
 {
-    ssize_t ret;
     int err;
 
     // XXX: make room if needed
@@ -74,38 +76,40 @@ int _stream_read (struct stream *stream)
         return err;
     
     // fill up
-    if ((ret = read(stream->fd, stream->buf + stream->length, stream->size - stream->length)) < 0) {
-        log_pwarning("read");
-        return -1;
+    size_t len = stream->size - stream->length;
+
+    if ((err = stream->type->read(stream->buf + stream->length, &len, stream->ctx))) {
+        log_pwarning("stream-read");
+        return err;
     }
 
-    if (!ret) {
+    if (!len) {
         log_warning("eof");
         return 1;
     }
 
-    stream->length += ret;
+    stream->length += len;
 
     return 0;
 }
 
 int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
 {
-    ssize_t ret;
-
     while (size) {
-        if ((ret= write(stream->fd, buf, size)) < 0) {
-            log_pwarning("write");
+        size_t len = size;
+
+        if (stream->type->write(buf, &len, stream->ctx)) {
+            log_pwarning("stream-write");
             return -1;
         }
 
-        if (!ret) {
+        if (!len) {
             log_warning("eof");
             return 1;
         }
 
-        buf += ret;
-        size -= ret;
+        buf += len;
+        size -= len;
     }
 
     return 0;
@@ -113,20 +117,20 @@ int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
 
 int _stream_write (struct stream *stream)
 {
-    ssize_t ret;
-
     while (stream->offset < stream->length) {
-        if ((ret = write(stream->fd, stream->buf + stream->offset, stream->length - stream->offset)) < 0) {
-            log_pwarning("write");
+        size_t len = stream->length - stream->offset;
+
+        if (stream->type->write(stream->buf + stream->offset, &len, stream->ctx)) {
+            log_pwarning("stream-write");
             return -1;
         }
 
-        if (!ret) {
+        if (!len) {
             log_warning("eof");
             return 1;
         }
 
-        stream->offset += ret;
+        stream->offset += len;
     }
 
     return 0;
