@@ -30,4 +30,11 @@ const char * sockpeer_str (int sock);
  */
 int sock_nonblocking (int sock);
 
+/*
+ * Accept a new socket connection on a listen() socket.
+ *
+ * Returns 1 on nonblocking, 0 on success, <0 on error.
+ */
+int sock_accept (int ssock, int *sockp);
+
 #endif

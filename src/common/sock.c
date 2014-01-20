@@ -2,6 +2,7 @@
 
 #include "common/log.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <stdlib.h>
@@ -91,3 +92,23 @@ int sock_nonblocking (int sock)
 
 	return 0;
 }
+
+int sock_accept (int ssock, int *sockp)
+{
+    int sock;
+
+    sock = accept(ssock, NULL, NULL);
+    
+    if (sock >= 0) {
+        *sockp = sock;
+        return 0;
+    
+    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return 1;
+
+    } else {
+        log_perror("accept");
+        return -1;
+    }
+}
+
