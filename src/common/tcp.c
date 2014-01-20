@@ -1,18 +1,11 @@
 #include "common/tcp.h"
+#include "common/tcp_internal.h"
 
 #include "common/log.h"
 #include "common/sock.h"
 #include "common/stream.h"
 
 #include <unistd.h>
-
-struct tcp {
-	int sock;
-	
-	struct event *event;
-
-	struct stream *read, *write;
-};
 
 void tcp_event (struct event *event, int flags, void *ctx)
 {
@@ -24,7 +17,7 @@ int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
     struct tcp *tcp = ctx;
     int err;
 
-    while ((err = sock_read(tcp->sock, buf, sizep)) > 0) {
+    while ((err = sock_read(tcp->sock, buf, sizep)) > 0 && tcp->event) {
         if (event_yield(tcp->event, EVENT_READ)) {
             log_error("event_yield");
             return -1;
@@ -44,7 +37,7 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
     struct tcp *tcp = ctx;
     int err;
 
-    while ((err = sock_write(tcp->sock, buf, sizep)) > 0) {
+    while ((err = sock_write(tcp->sock, buf, sizep)) > 0 && tcp->event) {
         if (event_yield(tcp->event, EVENT_WRITE)) {
             log_error("event_write");
             return -1;
@@ -74,16 +67,18 @@ int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
 	}
 
 	tcp->sock = sock;
+    
+    if (event_main) {
+        if (sock_nonblocking(sock)) {
+            log_error("sock_nonblocking");
+            goto error;
+        }
 
-    if (sock_nonblocking(sock)) {
-        log_error("sock_nonblocking");
-        goto error;
+        if (event_create(event_main, &tcp->event, sock)) {
+            log_error("event_create");
+            goto error;
+        }
     }
-
-	if (event_create(event_main, &tcp->event, sock)) {
-		log_error("event_create");
-		goto error;
-	}
 
 	if (stream_create(&tcp_stream_type, &tcp->read, TCP_STREAM_SIZE, tcp)) {
 		log_error("stream_create read");
