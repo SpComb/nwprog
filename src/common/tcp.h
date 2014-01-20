@@ -9,11 +9,11 @@
 // XXX: bad
 #define TCP_STREAM_SIZE 1024
 
+struct tcp;
 struct tcp_server;
-struct tcp_stream;
 struct tcp_client;
 
-typedef void (tcp_server_handler)(struct tcp_server *server, struct tcp_stream *stream, void *ctx);
+typedef void (tcp_server_handler)(struct tcp_server *server, struct tcp *tcp, void *ctx);
 
 /*
  * Open a TCP socket and connect to given host/port.
@@ -37,7 +37,7 @@ int tcp_server (struct event_main *event_main, struct tcp_server **serverp, cons
  *
  * This will event_yield on the server socket..
  */
-int tcp_server_accept (struct tcp_server *server, struct tcp_stream **streamp);
+int tcp_server_accept (struct tcp_server *server, struct tcp **tcpp);
 
 /*
  * Release all resources.
@@ -49,20 +49,17 @@ void tcp_server_destroy (struct tcp_server *server);
  *
  * XXX: blocking
  */
-int tcp_client (struct tcp_stream **streamp, const char *host, const char *port);
+int tcp_client (struct tcp **tcpp, const char *host, const char *port);
 
 /*
- * TCP connetcions interface.
+ * TCP connection interface.
  */ 
-// XXX
-int tcp_stream_create (struct event_main *event_main, struct tcp_stream **streamp, int sock);
+struct stream * tcp_read_stream (struct tcp *tcp);
+struct stream * tcp_write_stream (struct tcp *tcp);
 
-struct stream * tcp_stream_read (struct tcp_stream *stream);
-struct stream * tcp_stream_write (struct tcp_stream *stream);
-
-const char * tcp_stream_sock_str (struct tcp_stream *stream);
-const char * tcp_stream_peer_str (struct tcp_stream *stream);
+const char * tcp_sock_str (struct tcp *tcp);
+const char * tcp_peer_str (struct tcp *tcp);
     
-void tcp_stream_destroy (struct tcp_stream *stream);
+void tcp_destroy (struct tcp *tcp);
 
 #endif

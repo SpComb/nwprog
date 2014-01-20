@@ -6,7 +6,7 @@
 
 #include <unistd.h>
 
-struct tcp_stream {
+struct tcp {
 	int sock;
 	
 	struct event *event;
@@ -14,81 +14,78 @@ struct tcp_stream {
 	struct stream *read, *write;
 };
 
-void tcp_stream_event (struct event *event, int flags, void *ctx)
+void tcp_event (struct event *event, int flags, void *ctx)
 {
 	log_info("flags=%#02x", flags);
 }
 
-int tcp_stream_create (struct event_main *event_main, struct tcp_stream **streamp, int sock)
+int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
 {
-	struct tcp_stream *stream;
+	struct tcp *tcp;
 
-	if (!(stream = calloc(1, sizeof(*stream)))) {
+	if (!(tcp = calloc(1, sizeof(*tcp)))) {
 		log_perror("calloc");
 		return -1;
 	}
 
-	stream->sock = sock;
-/*
-	if (event_create(server->event_main, &stream->event, sock, tcp_stream_event, stream)) {
+	tcp->sock = sock;
+
+	if (event_create(event_main, &tcp->event, sock)) {
 		log_warning("event_create");
 		goto error;
 	}
-*/
-	if (stream_create(&stream->read, sock, TCP_STREAM_SIZE)) {
+
+	if (stream_create(&tcp->read, sock, TCP_STREAM_SIZE)) {
 		log_warning("stream_create read");
 		goto error;
 	}
 	
-	if (stream_create(&stream->write, sock, TCP_STREAM_SIZE)) {
+	if (stream_create(&tcp->write, sock, TCP_STREAM_SIZE)) {
 		log_warning("stream_create write");
 		goto error;
 	}
-/*
-	if (event_set(stream->event, EVENT_READ)) {
-		log_warning("event_set");
-		goto error;
-	}
-*/
 
-	*streamp = stream;
+	*tcpp = tcp;
 
 	return 0;
 error:
-	tcp_stream_destroy(stream);
+	tcp_destroy(tcp);
 	return -1;
 }
 
-struct stream * tcp_stream_read (struct tcp_stream *stream)
+struct stream * tcp_read_stream (struct tcp *tcp)
 {
-    return stream->read;
+    return tcp->read;
 }
 
-struct stream * tcp_stream_write (struct tcp_stream *stream)
+struct stream * tcp_write_stream (struct tcp *tcp)
 {
-    return stream->write;
+    return tcp->write;
 }
 
-const char * tcp_stream_sock_str (struct tcp_stream *stream)
+const char * tcp_sock_str (struct tcp *tcp)
 {
-	return sockname_str(stream->sock);
+	return sockname_str(tcp->sock);
 }
 
-const char * tcp_stream_peer_str (struct tcp_stream *stream)
+const char * tcp_peer_str (struct tcp *tcp)
 {
-	return sockpeer_str(stream->sock);
+	return sockpeer_str(tcp->sock);
 }
 
-void tcp_stream_destroy (struct tcp_stream *stream)
+void tcp_destroy (struct tcp *tcp)
 {
-	if (stream->write)
-		stream_destroy(stream->write);
+    if (tcp->event)
+        event_destroy(tcp->event);
 
-	if (stream->read)
-		stream_destroy(stream->read);
+	if (tcp->write)
+		stream_destroy(tcp->write);
 
-    if (stream->sock >= 0)
-        close(stream->sock);
+	if (tcp->read)
+		stream_destroy(tcp->read);
 
-	free(stream);
+    if (tcp->sock >= 0)
+        close(tcp->sock);
+
+	free(tcp);
 }

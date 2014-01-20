@@ -1,4 +1,5 @@
 #include "common/tcp.h"
+#include "common/tcp_internal.h"
 
 #include "common/log.h"
 #include "common/sock.h"
@@ -121,7 +122,7 @@ error:
 /*
  * Accept a new incoming connection.
  */
-int tcp_server_accept (struct tcp_server *server, struct tcp_stream **streamp)
+int tcp_server_accept (struct tcp_server *server, struct tcp **tcpp)
 {
     int err;
     int sock;
@@ -141,8 +142,8 @@ int tcp_server_accept (struct tcp_server *server, struct tcp_stream **streamp)
 
 	log_info("%s accept %s", sockname_str(sock), sockpeer_str(sock));
 
-	if (tcp_stream_create(server->event_main, streamp, sock)) {
-		log_error("tcp_stream_create");
+	if (tcp_create(server->event_main, tcpp, sock)) {
+		log_error("tcp_create");
 		return -1;
 	}
 
