@@ -1,6 +1,7 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include "common/event.h"
 #include "common/http.h"
 
 #include <stdio.h>
@@ -28,7 +29,7 @@ struct server_handler {
 /*
  * Initialize a new server that listens on the given host/port.
  */
-int server_create (struct server **serverp, const char *host, const char *port);
+int server_create (struct event_main *event_main, struct server **serverp, const char *host, const char *port);
 
 /*
  * Add a server handler for requests.

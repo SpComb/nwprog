@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 struct server {
-	int sock;
+    struct tcp_server *tcp_server;
 
 	TAILQ_HEAD(server_handlers, server_handler_item) handlers;
 };
@@ -45,7 +45,12 @@ struct server_client {
 	int err;
 };
 
-int server_create (struct server **serverp, const char *host, const char *port)
+/*
+ * Handle client request.
+ */
+void server_client (struct tcp_server *tcp_server, struct tcp_stream *stream, void *ctx);
+
+int server_create (struct event_main *event_main, struct server **serverp, const char *host, const char *port)
 {
 	struct server *server = NULL;
 
@@ -54,10 +59,10 @@ int server_create (struct server **serverp, const char *host, const char *port)
 		return -1;
 	}
 
-	if ((server->sock = tcp_listen(host, port, TCP_LISTEN_BACKLOG)) < 0) {
-		log_perror("tcp_listen %s:%s", host, port);
-		goto error;
-	}
+    if (tcp_server(event_main, &server->tcp_server, host, port, server_client, server)) {
+        log_warning("tcp_server");
+        goto error;
+    }
 
 	TAILQ_INIT(&server->handlers);
 
@@ -310,10 +315,7 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 	return 0;
 }
 
-/*
- * Handle client request.
- */
-int server_client (struct server *server, struct server_client *client)
+int server_client_request (struct server *server, struct server_client *client)
 {
 	struct server_handler *handler = NULL;
 	enum http_status status = 0;
@@ -373,54 +375,33 @@ error:
 	return err;
 }
 
-int server_run (struct server *server)
+// TODO: multiple requests
+void server_client (struct tcp_server *tcp_server, struct tcp_stream *stream, void *ctx)
 {
+    struct server *server = ctx;
 	struct server_client client = { };
-	int err;
+    int err = 0;
 
-	// accept
-	// XXX: move this to sock?
-	int sock;
-	struct sockaddr_storage addr;
-	socklen_t addrlen = sizeof(addr);
-	
-	if ((sock = accept(server->sock, (struct sockaddr *) &addr, &addrlen)) < 0) {
-		log_perror("accept");
-		return -1;
-	}
-
-	log_info("%s accept %s", sockname_str(sock), sockpeer_str(sock));
-	
 	// http
-	if ((err = http_create(&client.http, sock))) {
-		log_perror("http_create %s", sockpeer_str(sock));
-		sock = -1;
-		goto error;
-	}
-	
-	// process
-	if ((err = server_client(server, &client))) {
+	if ((err = http_create(&client.http, tcp_stream_read(stream), tcp_stream_write(stream)))) {
+		log_perror("http_create");
 		goto error;
 	}
 
-	// ok
+    if ((err = server_client_request(server, &client))) {
+        log_warning("server_client_request");
+        goto error;
+    }
 
 error:
 	if (client.http)
 		http_destroy(client.http);
-
-	if (sock >= 0)
-		close(sock);
-
-	return 0;
+    
+    tcp_stream_destroy(stream);
 }
 
 void server_destroy (struct server *server)
 {
-
-	if (server->sock >= 0)
-		close(server->sock);
-
 	// handlers
     struct server_handler_item *h;
 

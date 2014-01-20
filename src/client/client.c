@@ -11,8 +11,7 @@
 #include <sys/queue.h>
 
 struct client {
-	int sock;
-
+    struct tcp_stream *tcp;
 	struct http *http;
 
 	/* Settings */
@@ -100,19 +99,6 @@ int client_add_header (struct client *client, const char *name, const char *valu
     return 0;
 }
 
-/*
- * Attempt to connect to the given server.
- */
-static int client_connect (struct client *client, const char *host, const char *port)
-{
-	if ((client->sock = tcp_connect(host, port)) < 0) {
-		log_perror("%s:%s", host, port);
-		return -1;
-	}
-
-	return 0;
-}
-
 int client_open (struct client *client, const struct url *url)
 {
 	int err;
@@ -122,11 +108,13 @@ int client_open (struct client *client, const struct url *url)
 	if (url->port)
 		port = url->port;
 	
-	if ((err = client_connect(client, url->host, port)))
-		return err;
+    if ((err = tcp_client(&client->tcp, url->host, port))) {
+        log_error("tcp_client");
+        return err;
+    }
 
 	// http
-	if ((err = http_create(&client->http, client->sock)))
+	if ((err = http_create(&client->http, tcp_stream_read(client->tcp), tcp_stream_write(client->tcp))))
 		return err;
 
 	return 0;
@@ -159,7 +147,7 @@ static int client_request (struct client *client, const struct client_request *r
 	int err;
 
 	// request
-	log_info("%s http://%s/%s", request->method, sockpeer_str(client->sock), request->url->path);
+	log_info("%s http://%s/%s", request->method, tcp_stream_peer_str(client->tcp), request->url->path);
 
 	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");

@@ -2,6 +2,7 @@
 #include "server/static.h"
 
 #include "common/daemon.h"
+#include "common/event.h"
 #include "common/log.h"
 #include "common/url.h"
 
@@ -45,7 +46,7 @@ void help (const char *argv0) {
 	, argv0);
 }
 
-int server (const struct options *options, const char *arg)
+int server (struct event_main *event_main, const struct options *options, const char *arg)
 {
 	struct server *server = NULL;
 	struct server_static *server_static = NULL;
@@ -60,7 +61,7 @@ int server (const struct options *options, const char *arg)
 
 	log_info("%s: host=%s port=%s path=%s iam=%s", arg, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path, options->iam);
 
-	if ((err = server_create(&server, urlbuf.url.host, urlbuf.url.port))) {
+	if ((err = server_create(event_main, &server, urlbuf.url.host, urlbuf.url.port))) {
 		log_fatal("server_create %s %s", urlbuf.url.host, urlbuf.url.port);
 		goto error;
 	}
@@ -74,22 +75,6 @@ int server (const struct options *options, const char *arg)
 		if ((err = server_static_add(server_static, server, urlbuf.url.path))) {
 			log_fatal("server_static_add: %s", "/");
 			goto error;
-		}
-	}
-
-	// XXX: mainloop
-	if (options->daemon) {
-		daemon_start();
-	}
-
-	while (true) {
-		if ((err = server_run(server)) < 0) {
-			log_fatal("server_run");
-			goto error;
-		}
-
-		if (err) {
-			log_warning("server_run");
 		}
 	}
 
@@ -113,6 +98,7 @@ int main (int argc, char **argv)
 	struct options options = {
 		.iam	= getlogin(),
 	};
+    struct event_main *event_main;
 
 	while ((opt = getopt_long(argc, argv, "hqvdDI:S:", main_options, &longopt)) >= 0) {
 		switch (opt) {
@@ -149,14 +135,35 @@ int main (int argc, char **argv)
 		}
 	}
 
-	// apply
+    // setup
 	log_set_level(log_level);
 
 	daemon_init();
 
+    if (event_main_create(&event_main)) {
+        log_fatal("event_main_create");
+        return 1;
+    }
+
+    // apply
 	while (optind < argc && !err) {
-		err = server(&options, argv[optind++]);
+		if ((err = server(event_main, &options, argv[optind++]))) {
+            log_fatal("server");
+            return 1;
+        }
 	}
-	
-	return err;
+
+
+    // run
+	if (options.daemon) {
+		daemon_start();
+	}
+
+    if (event_main_run(event_main)) {
+        log_fatal("event_main_run");
+        return 1;
+    }
+
+    // done
+    return 0;
 }

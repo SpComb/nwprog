@@ -21,15 +21,19 @@ test: bin/test-url bin/test-http
 doc: doc/README.html doc/diary.html
 
 bin/client: build/src/client.o \
-	build/src/client/client.o build/src/common/tcp.o build/src/common/sock.o \
+	build/src/client/client.o \
+	build/src/common/tcp.o build/src/common/tcp_client.o build/src/common/tcp_stream.o \
+	build/src/common/sock.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \
 	build/src/common/util.o \
 	build/src/common/log.o
 
 bin/server: build/src/server.o \
-	build/src/server/server.o build/src/common/tcp.o build/src/common/sock.o \
+	build/src/server/server.o \
 	build/src/server/static.o \
+	build/src/common/tcp.o build/src/common/tcp_server.o build/src/common/tcp_stream.o \
+	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \
 	build/src/common/daemon.o \
