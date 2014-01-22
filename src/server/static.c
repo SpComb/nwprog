@@ -5,6 +5,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -19,13 +20,43 @@ struct server_static {
     char *realpath;
 };
 
-int server_static_file (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat)
+struct server_static_mimetype {
+    const char *glob;
+    const char *content_type;
+
+} server_static_mimetypes[] = {
+    { "*.html",     "text/html"     },
+    { "*.txt",      "text/plain"    },
+    { }
+};
+
+/*
+ * Lookup a `struct server_static_mimetype` for the given (file) path.
+ */
+int server_static_lookup_mimetype (const struct server_static_mimetype **mimep, struct server_static *s, const char *path)
+{
+    struct server_static_mimetype *mime;
+
+    for (mime = server_static_mimetypes; mime->glob && mime->content_type; mime++) {
+        if (fnmatch(mime->glob, path, 0) == 0) {
+            *mimep = mime;
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int server_static_file (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
 {
 	int err;
 
 	// respond
 	if ((err = server_response(client, 200, NULL)))
 		return err;
+
+    if (mime && (err = server_response_header(client, "Content-Type", "%s", mime->content_type)))
+        return err;
 
 	if ((err = server_response_file(client, stat->st_size, file)))
 		return err;
@@ -92,11 +123,10 @@ enum http_status server_static_error ()
     }
 }
 
-
 /*
  * Lookup request target file, returning an open fd and stat.
  */
-int server_static_lookup (struct server_static *ss, const char *reqpath, int *fdp, struct stat *stat)
+int server_static_lookup (struct server_static *ss, const char *reqpath, int *fdp, struct stat *stat, const struct server_static_mimetype **mimep)
 {
     char path[PATH_MAX], rootpath[PATH_MAX];
 	int fd = -1;
@@ -146,6 +176,17 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int *fd
         goto error;
     }
 
+    // figure out mimetype
+    if ((ret = server_static_lookup_mimetype(mimep, ss, path)) < 0) {
+        log_perror("server_static_lookup_mimetype: %s", path);
+        goto error;
+    }
+    
+    if (ret) {
+        log_warning("no mimetype: %s", path);
+        *mimep = NULL;
+    }
+
     *fdp = fd;
     return 0;
 
@@ -162,6 +203,7 @@ error:
 int server_static_request (struct server_handler *handler, struct server_client *client, const char *method, const char *path)
 {
 	struct server_static *ss = (struct server_static *) handler;
+    const struct server_static_mimetype *mime = NULL;
 
 	int fd = -1;
 	struct stat stat;
@@ -178,11 +220,11 @@ int server_static_request (struct server_handler *handler, struct server_client 
 		goto error;
 
     // lookup
-    if ((ret = server_static_lookup(ss, path, &fd, &stat))) {
+    if ((ret = server_static_lookup(ss, path, &fd, &stat, &mime))) {
         return ret;
     }
 
-	log_info("%s %s %s", ss->root, method, path);
+	log_info("%s %s %s %s", ss->root, method, path, mime ? mime->content_type : "(unknown mimetype)");
 	
 	// check
 	if ((stat.st_mode & S_IFMT) == S_IFREG) {
@@ -196,7 +238,7 @@ int server_static_request (struct server_handler *handler, struct server_client 
 			fd = -1;
 		}
 
-		ret = server_static_file(ss, client, file, &stat);
+		ret = server_static_file(ss, client, file, &stat, mime);
 
 		if (fclose(file)) {
 			log_pwarning("fclose");
