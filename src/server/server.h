@@ -79,6 +79,15 @@ int server_response_file (struct server_client *client, size_t content_length, F
 int server_response_print (struct server_client *client, const char *fmt, ...)
 	__attribute((format (printf, 2, 3)));
 
+/*
+ * Send a complete HTTP 301 redirect, using the given host and formatted path.
+ */
+int server_response_redirect (struct server_client *client, const char *host, const char *fmt, ...);
+
+/*
+ * Send a complete (very basic) HTML-formatted HTTP error status response.
+ */
+int server_response_error (struct server_client *client, enum http_status status, const char *reason);
 
 /*
  * Process client requests.

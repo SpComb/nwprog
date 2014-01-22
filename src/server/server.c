@@ -43,6 +43,7 @@ struct server_client {
 	/* Request */
 	char request_method[HTTP_METHOD_MAX];
 	char request_path[HTTP_PATH_MAX];
+	char request_host[HTTP_HOST_MAX];
 	
 	size_t request_content_length;
 	
@@ -166,6 +167,13 @@ int server_request_header (struct server_client *client, const char **namep, con
 		}
 
 		log_debug("content_length=%zu", client->request_content_length);
+	} else if (strcasecmp(*namep, "Host") == 0) {
+		if (strlen(*valuep) >= sizeof(client->request_host)) {
+			log_warning("host is too long: %zu", strlen(*valuep));
+			return 400;
+		} else {
+			strncpy(client->request_host, *valuep, sizeof(client->request_host));
+		}
 	}
 	
 	return 0;
@@ -310,6 +318,39 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 		log_warning("http_vwrite");
 		return err;
 	}
+
+	return 0;
+}
+
+int server_response_redirect (struct server_client *client, const char *host, const char *fmt, ...)
+{
+	char path[HTTP_PATH_MAX];
+	int ret;
+	va_list args;
+
+	va_start(args, fmt);
+	ret = vsnprintf(path, sizeof(path), fmt, args);
+	va_end(args);
+
+	if (ret < 0) {
+		log_perror("vsnprintf");
+		return -1;
+	} else if (ret >= sizeof(path)) {
+		log_warning("truncated redirect path: %d", ret);
+		return -1;
+	}
+
+	// auto
+	if (!host) {
+		host = client->request_host;
+	}
+
+	if ((
+				server_response(client, 301, NULL)
+			||	server_response_header(client, "Location", "http://%s%s", host, path)
+			||	server_response_headers(client)
+	))
+		return -1;
 
 	return 0;
 }

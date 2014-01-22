@@ -19,6 +19,9 @@ struct http;
 /* Maximum path length */
 #define HTTP_PATH_MAX 1024
 
+/* Maximum Host: header length */
+#define HTTP_HOST_MAX 256
+
 
 enum http_status {
 	HTTP_OK						= 200,
