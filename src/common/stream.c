@@ -84,7 +84,7 @@ int _stream_read (struct stream *stream)
     }
 
     if (!len) {
-        log_warning("eof");
+        log_debug("eof");
         return 1;
     }
 
@@ -104,7 +104,7 @@ int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
         }
 
         if (!len) {
-            log_warning("eof");
+            log_debug("eof");
             return 1;
         }
 
@@ -126,7 +126,7 @@ int _stream_write (struct stream *stream)
         }
 
         if (!len) {
-            log_warning("eof");
+            log_debug("eof");
             return 1;
         }
 
@@ -144,15 +144,21 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep)
     while (stream->length < stream->offset + *sizep) {
         if ((err = _stream_read(stream)) < 0)
             return err;
+		
+		if (err)
+			break;
     }
 
     *bufp = stream->buf + stream->offset;
 
     if (*sizep && stream->offset + *sizep < stream->length) {
 
-    } else {
+    } else if (stream->length > stream->offset) {
         *sizep = stream->length - stream->offset;
-    }
+    } else {
+		// EOF
+		return 1;
+	}
         
     stream->offset += *sizep;
 
@@ -176,6 +182,7 @@ int stream_read_line (struct stream *stream, char **linep)
         }
 
         // needs moar bytez in mah buffers
+		// XXX: should we return the last line on EOF, or expect a trailing \r\n?
         if ((err = _stream_read(stream)))
             return err;
     }

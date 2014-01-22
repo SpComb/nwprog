@@ -30,11 +30,15 @@ int stream_init (const struct stream_type *type, struct stream *stream, size_t s
  * *sizep may be passed as 0 to read as much data as available, or a maximum amount to return.
  *
  * The amount of data available is returned in *sizep, and may be less on EOF.
+ *
+ * Returns 1 on EOF, <0 on error.
  */
 int stream_read (struct stream *stream, char **bufp, size_t *sizep);
 
 /*
  * Read one line from the stream, returning a pointer to the NUL-terminated line.
+ *
+ * Returns 1 on EOF, <0 on error.
  */
 int stream_read_line (struct stream *stream, char **linep);
 
