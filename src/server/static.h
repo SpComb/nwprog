@@ -5,15 +5,15 @@
 
 struct server_static;
 
-/*
- * Initialize.
- */
-int server_static_create (struct server_static **sp, const char *root);
+enum server_static_flags {
+    SERVER_STATIC_GET       = 0x01,
+    SERVER_STATIC_PUT       = 0x02,
+};
 
 /*
- * Mount onto the given server path.
+ * Initialize and mount onto the given server path.
  */
-int server_static_add (struct server_static *s, struct server *server, const char *path);
+int server_static_create (struct server_static **sp, const char *root, struct server *server, const char *path, int flags);
 
 /*
  * Release all associated resources.

@@ -17,6 +17,8 @@ struct server_static {
 	struct server_handler handler;
 
 	const char *root;
+    const char *path;
+    int flags;
 
     char *realpath;
 };
@@ -50,7 +52,7 @@ int server_static_lookup_mimetype (const struct server_static_mimetype **mimep, 
     return 1;
 }
 
-int server_static_file (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
+int server_static_file_get (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
 {
 	int err;
 
@@ -67,6 +69,24 @@ int server_static_file (struct server_static *s, struct server_client *client, F
 	return 0;
 }
 
+int server_static_file_put (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
+{
+    int err;
+
+    // upload
+    if ((err = server_request_file(client, file)))
+        return err;
+
+    // done
+	if ((err = server_response(client, 201, NULL)))
+		return err;
+
+    return 0;
+}
+
+/*
+ * Print out the directory listing for a single item.
+ */
 static int server_static_dir_item (struct server_client *client, const char *path, bool dir, const char *glyphicon, const char *title)
 {
     return server_response_print(client, "\t\t\t<li%s%s%s>%s%s%s<a href='%s%s'>%s%s</a></li>\n",
@@ -163,11 +183,18 @@ enum http_status server_static_error ()
 /*
  * Lookup request target file, returning an open fd and stat.
  */
-int server_static_lookup (struct server_static *ss, const char *reqpath, int *fdp, struct stat *stat, const struct server_static_mimetype **mimep)
+int server_static_lookup (struct server_static *ss, const char *reqpath, int mode, int *fdp, struct stat *stat, const struct server_static_mimetype **mimep)
 {
     char path[PATH_MAX], rootpath[PATH_MAX];
 	int fd = -1;
     int ret;
+    
+    // strip off the leading prefix
+    if (ss->path[strlen(ss->path) - 1] == '/') {
+        reqpath += strlen(ss->path) - 1;
+    } else {
+        reqpath += strlen(ss->path);
+    }
 	
     if (*reqpath != '/') {
         log_warning("path without leading /: %s", reqpath);
@@ -187,7 +214,7 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int *fd
     log_debug("%s", path);
 
     // pre-check
-	if ((fd = open(path, O_RDONLY)) < 0) {
+	if ((fd = open(path, mode, 0644)) < 0) {
 		log_perror("open %s", path);
         ret = server_static_error();
         goto error;
@@ -245,6 +272,7 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	int fd = -1;
 	struct stat stat;
 	int ret = 0;
+    int open_mode;
 
 	// see if there are any interesting request headers
 	const char *header, *value;
@@ -257,7 +285,18 @@ int server_static_request (struct server_handler *handler, struct server_client 
 		goto error;
 
     // lookup
-    if ((ret = server_static_lookup(ss, path, &fd, &stat, &mime))) {
+    if (strcasecmp(method, "GET") == 0 && (ss->flags & SERVER_STATIC_GET)) {
+        open_mode = O_RDONLY;
+
+    } else if (strcasecmp(method, "PUT") == 0 && (ss->flags & SERVER_STATIC_PUT)) {
+        open_mode = O_WRONLY | O_CREAT | O_TRUNC;
+
+    } else {
+        log_warning("unknown method: %s %s", method, path);
+        return 400;
+    }
+
+    if ((ret = server_static_lookup(ss, path, open_mode, &fd, &stat, &mime))) {
         return ret;
     }
 
@@ -266,16 +305,30 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	// check
 	if ((stat.st_mode & S_IFMT) == S_IFREG) {
 		FILE *file;
+        
+        if ((open_mode == O_RDONLY)) {
+            if (!(file = fdopen(fd, "r"))) {
+                log_pwarning("fdopen");
+                ret = -1;
+                goto error;
+            } else {
+                fd = -1;
+            }
 
-		if (!(file = fdopen(fd, "r"))) {
-			log_pwarning("fdopen");
-			ret = -1;
-			goto error;
-		} else {
-			fd = -1;
-		}
+            ret = server_static_file_get(ss, client, file, &stat, mime);
 
-		ret = server_static_file(ss, client, file, &stat, mime);
+        } else {
+            // upload
+            if (!(file = fdopen(fd, "w"))) {
+                log_pwarning("fdopen");
+                ret = -1;
+                goto error;
+            } else {
+                fd = -1;
+            }
+
+            ret = server_static_file_put(ss, client, file, &stat, mime);
+        }
 
 		if (fclose(file)) {
 			log_pwarning("fclose");
@@ -311,7 +364,7 @@ error:
 	return ret;
 }
 
-int server_static_create (struct server_static **sp, const char *root)
+int server_static_create (struct server_static **sp, const char *root, struct server *server, const char *path, int flags)
 {
 	struct server_static *s;
 
@@ -321,6 +374,8 @@ int server_static_create (struct server_static **sp, const char *root)
 	}
 	
 	s->root = root;
+    s->path = path;
+    s->flags = flags;
 
     if (!(s->realpath = realpath(root, NULL))) {
         log_perror("realpath");
@@ -329,17 +384,17 @@ int server_static_create (struct server_static **sp, const char *root)
 	
 	s->handler.request = server_static_request;
 
+	if (server_add_handler(server, (flags & SERVER_STATIC_PUT) ? "PUT" : "GET", path, &s->handler)) {
+        log_error("server_add_handler");
+        goto error;
+    }
+
 	*sp = s;
 	return 0;
 
 error:
     free(s);
     return -1;
-}
-
-int server_static_add (struct server_static *s, struct server *server, const char *path)
-{
-	return server_add_handler(server, "GET", path, &s->handler);
 }
 
 void server_static_destroy (struct server_static *s)
