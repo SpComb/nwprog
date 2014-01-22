@@ -18,7 +18,7 @@ struct http {
 	const char *version;
 };
 
-static const char * http_status_str (enum http_status status)
+const char * http_status_str (enum http_status status)
 {
 	switch (status) {
 		case 200:	return "OK";

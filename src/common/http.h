@@ -33,6 +33,11 @@ enum http_status {
 };
 
 /*
+ * Return a const char* with a textual reason for the given http status.
+ */
+const char * http_status_str (enum http_status status);
+
+/*
  * Create a new HTTP connect using the given IO streams.
  *
  * Does not take ownership of the streams; they must be destroyed by the caller after http_destroy().
