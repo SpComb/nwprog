@@ -116,6 +116,8 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
 		return err;
 
     err |= server_response_header(client, "Content-Type", "text/html");
+    
+    // first server_response_print finishes headers
     err |= server_response_print(client, 
             "<!DOCTYPE html>\n"
             "<html>\n"
@@ -132,15 +134,17 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
         err |= server_static_dir_item(client, "..", false, "folder-close", NULL);
     }
     
-    // first server_response_print finishes headers
+    // directory items
 	while ((d = readdir(dir))) {
         const struct server_static_mimetype *mime = NULL;
-
+        
+        // ignore hidden files
         if (d->d_name[0] == '.')
             continue;
 
         bool isdir = (d->d_type == DT_DIR);
-
+        
+        // eyecandy
         if ((server_static_lookup_mimetype(&mime, s, d->d_name)) < 0) {
             log_warning("server_static_lookup_mimetype: %s %s", path, d->d_name);
         }
@@ -182,6 +186,8 @@ enum http_status server_static_error ()
 
 /*
  * Lookup request target file, returning an open fd and stat.
+ *
+ * `mode` is the set of open flags to use, usually O_RDONLY, but can be used to create/write files for upload.
  */
 int server_static_lookup (struct server_static *ss, const char *reqpath, int mode, int *fdp, struct stat *stat, const struct server_static_mimetype **mimep)
 {
@@ -200,7 +206,8 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int mod
         log_warning("path without leading /: %s", reqpath);
         return 400;
     }
-
+    
+    // build filesystem path
     if ((ret = snprintf(path, sizeof(path), "%s%s", ss->root, reqpath)) < 0) {
         log_perror("snprintf");
         return -1;
@@ -213,16 +220,9 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int mod
 	
     log_debug("%s", path);
 
-    // pre-check
-	if ((fd = open(path, mode, 0644)) < 0) {
-		log_perror("open %s", path);
-        ret = server_static_error();
-        goto error;
-	}
-
     // verify
     if (!realpath(path, rootpath)) {
-        log_perror("realpath");
+        log_perror("realpath %s", path);
         ret = server_static_error();
         goto error;
     }
@@ -233,6 +233,13 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int mod
         goto error;
     }
 
+    // open on disk
+	if ((fd = open(path, mode, 0644)) < 0) {
+		log_perror("open %s", path);
+        ret = server_static_error();
+        goto error;
+	}
+
     // stat for meta
     if (fstat(fd, stat)) {
         log_pwarning("fstatat %s", path);
@@ -240,7 +247,7 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int mod
         goto error;
     }
 
-    // figure out mimetype
+    // figure out mimetype, as we have the full path here
     if ((ret = server_static_lookup_mimetype(mimep, ss, path)) < 0) {
         log_perror("server_static_lookup_mimetype: %s", path);
         goto error;
@@ -378,13 +385,17 @@ int server_static_create (struct server_static **sp, const char *root, struct se
     s->flags = flags;
 
     if (!(s->realpath = realpath(root, NULL))) {
-        log_perror("realpath");
+        log_perror("realpath %s", root);
         goto error;
     }
 	
 	s->handler.request = server_static_request;
 
-	if (server_add_handler(server, (flags & SERVER_STATIC_PUT) ? "PUT" : "GET", path, &s->handler)) {
+    const char *method = (flags & SERVER_STATIC_PUT) ? "PUT" : "GET";
+
+    log_info("%s %s -> %s", method, path, root);
+
+	if (server_add_handler(server, method, path, &s->handler)) {
         log_error("server_add_handler");
         goto error;
     }
