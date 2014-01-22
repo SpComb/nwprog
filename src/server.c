@@ -15,10 +15,12 @@ struct options {
 	bool daemon;
 	const char *iam;
 	const char *S;
+    const char *U;
 
     /* Processed */
     struct server *server;
     struct server_static *server_static;
+    struct server_static *server_upload;
 };
 
 static const struct option main_options[] = {
@@ -30,6 +32,7 @@ static const struct option main_options[] = {
 
 	{ "iam",		1,	NULL,		'I' },
 	{ "static",		1,	NULL,		'S' },
+    { "upload",     1,  NULL,       'U' },
 	{ }
 };
 
@@ -46,6 +49,7 @@ void help (const char *argv0) {
 			"\n"
 			"	-I --iam=username  	Send Iam header\n"
 			"	-S --static=path	Serve static files\n"
+            "   -U --upload=path    Accept PUT files\n"
 			"\n"
 	, argv0);
 }
@@ -80,7 +84,7 @@ int main (int argc, char **argv)
 	};
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdDI:S:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdDI:S:U:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -109,6 +113,10 @@ int main (int argc, char **argv)
 				options.S = optarg;
 				break;
 
+            case 'U':
+                options.U = optarg;
+                break;
+
 			default:
 				help(argv[0]);
 				return 1;
@@ -131,13 +139,15 @@ int main (int argc, char **argv)
         goto error;
 	}
 
-	if (options.S) {
-		if ((err = server_static_create(&options.server_static, options.S))) {
-			log_fatal("server_static_create: %s", options.S);
+	if (options.U) {
+		if ((err = server_static_create(&options.server_upload, options.U, options.server, "/upload", SERVER_STATIC_PUT))) {
+			log_fatal("server_static_create: %s", options.U);
 			goto error;
 		}
+	}
 
-		if ((err = server_static_add(options.server_static, options.server, "/"))) {
+	if (options.S) {
+		if ((err = server_static_create(&options.server_static, options.S, options.server, "/", SERVER_STATIC_GET))) {
 			log_fatal("server_static_add: %s", "/");
 			goto error;
 		}
