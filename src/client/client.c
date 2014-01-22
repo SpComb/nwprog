@@ -32,8 +32,8 @@ struct client_header {
  * Contents of request sent by client..
  */
 struct client_request {
-	const struct url *url;
 	const char *method;
+	const struct url *url;
 
 	/* Headers */
 	size_t content_length;
@@ -47,7 +47,6 @@ struct client_request {
  */
 struct client_response {
 	unsigned status;
-	const char *reason;
 
 	/* Headers */
 	size_t content_length;
@@ -142,7 +141,23 @@ int client_request_headers (struct client *client, const struct client_request *
 	return err;
 }
 
-static int client_request (struct client *client, const struct client_request *request)
+int client_response_header (struct client *client, struct client_response *response, const char *header, const char *value)
+{
+	log_info("\t%20s: %s", header, value);
+
+	if (strcasecmp(header, "Content-Length") == 0) {
+		if (sscanf(value, "%zu", &response->content_length) != 1) {
+			log_warning("invalid content_length: %s", value);
+			return 1;
+		}
+
+		log_debug("content_length=%zu", response->content_length);
+	}
+
+	return 0;
+}
+
+static int client_request (struct client *client, struct client_request *request, struct client_response *response)
 {
 	int err;
 
@@ -168,58 +183,64 @@ static int client_request (struct client *client, const struct client_request *r
 		return err;
 
 	log_debug("end-of-request");
+	
+	// response
+	{
+		const char *reason, *version;
 
-	return 0;
-}
+		if ((err = http_read_response(client->http, &version, &response->status, &reason))) {
+			log_error("error reading response line");
+			return err;
+		}
+		
+		log_info("%u %s", response->status, reason);
+	}
 
-int client_response_header (struct client *client, struct client_response *response, const char *header, const char *value)
-{
-	log_info("\t%20s: %s", header, value);
-
-	if (strcasecmp(header, "Content-Length") == 0) {
-		if (sscanf(value, "%zu", &response->content_length) != 1) {
-			log_warning("invalid content_length: %s", value);
-			return 1;
+	// response headers
+	{
+		const char *header, *value;
+		
+		// *header is preserved for folded header lines... so they appear as duplicate headers
+		while (!(err = http_read_header(client->http, &header, &value))) {
+			if ((err = client_response_header(client, response, header, value)))
+				return err;
 		}
 
-		log_debug("content_length=%zu", response->content_length);
-	}
-
-	return 0;
-}
-
-static int client_response (struct client *client, struct client_response *response)
-{
-	const char *version;
-	int err;
-
-	if ((err = http_read_response(client->http, &version, &response->status, &response->reason))) {
-		log_error("error reading response line");
-		return err;
-	}
-	
-	log_info("%u %s", response->status, response->reason);
-
-	const char *header, *value;
-	
-	// *header is preserved for folded header lines... so they appear as duplicate headers
-	while (!(err = http_read_header(client->http, &header, &value))) {
-		if ((err = client_response_header(client, response, header, value)))
+		if (err < 0) {
+			log_error("error reading response headers");
 			return err;
+		}
 	}
 
-	if (err < 0) {
-		log_error("error reading response headers");
-		return err;
-	}
+	// response body
+	if (
+			(response->status >= 100 && response->status <= 199)
+		||	(response->status == 204 || response->status == 304)
+		||	strcasecmp(request->method, "HEAD") == 0
+	) {
+		log_debug("no body for 1xx 204 304 or HEAD response");
 
-	// TODO: figure out if we actually have one
-	if ((err = http_read_file(client->http, response->content_file, response->content_length)))
-		return err;
+		// more requests
+		err = 0;
+
+	} else if (response->content_length) {
+		if ((err = http_read_file(client->http, response->content_file, response->content_length)))
+			return err;
+		
+		// more requests
+		err = 0;
+
+	} else {
+		if ((err = http_read_file(client->http, response->content_file, 0)))
+			return err;
+
+		// to end of connection
+		err = 1;
+	}
 	
-	log_debug("end-of-response");
+	log_info("");
 
-	return 0;
+	return err;
 }
 
 int client_get (struct client *client, const struct url *url)
@@ -235,10 +256,7 @@ int client_get (struct client *client, const struct url *url)
 		.content_file	= client->response_file,
 	};
 	
-	if ((err = client_request(client, &request)))
-		return err;
-
-	if ((err = client_response(client, &response)))
+	if ((err = client_request(client, &request, &response)) < 0)
 		return err;
 
 	return 0;
@@ -279,10 +297,7 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 		.content_file	= client->response_file,
 	};
 
-	if ((err = client_request(client, &request)))
-		return err;
-
-	if ((err = client_response(client, &response)))
+	if ((err = client_request(client, &request, &response)) < 0)
 		return err;
 
 	return 0;
