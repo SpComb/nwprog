@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -23,10 +24,12 @@ struct server_static {
 struct server_static_mimetype {
     const char *glob;
     const char *content_type;
+    const char *glyphicon;
 
 } server_static_mimetypes[] = {
-    { "*.html",     "text/html"     },
-    { "*.txt",      "text/plain"    },
+    { "*.html",     "text/html",    "globe"         },
+    { "*.txt",      "text/plain",   "align-left"    },
+    { "*.css",      "text/css"      },
     { }
 };
 
@@ -64,6 +67,16 @@ int server_static_file (struct server_static *s, struct server_client *client, F
 	return 0;
 }
 
+static int server_static_dir_item (struct server_client *client, const char *path, bool dir, const char *glyphicon, const char *title)
+{
+    return server_response_print(client, "\t\t\t<li%s%s%s>%s%s%s<a href='%s%s'>%s%s</a></li>\n",
+            title ? " title='" : "", title ? title : "", title ? "'" : "",
+            glyphicon ? "<span class='glyphicon glyphicon-" : "", glyphicon ? glyphicon : "", glyphicon ? "'></span>" : "",
+            path, dir ? "/" : "",
+            path, dir ? "/" : ""
+    );
+}
+
 /*
  * Send directory listing, in text/html.
  *
@@ -83,29 +96,53 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
 		return err;
 
     err |= server_response_header(client, "Content-Type", "text/html");
-    err |= server_response_print(client, "<html><head><title>Index of %s</title></head>\n", path);
-    err |= server_response_print(client, "<body><h1>Index of %s</h1><ul>\n", path);
+    err |= server_response_print(client, 
+            "<!DOCTYPE html>\n"
+            "<html>\n"
+            "\t<head>\n"
+            "\t\t<title>Index of %s</title>\n"
+            "\t\t<link rel='Stylesheet' type='text/css' href='/static/index.css'></link>\n"
+            "\t</head>\n"
+            "\t<body><div class='container'>\n"
+            "\t\t<h1>Index of <tt>%s</tt></h1>\n"
+            "\t\t<ul class='index'>\n", 
+            path, path);
 
     if (strcmp(path, "/") != 0) {
-        err |= server_response_print(client, "<li><a href=\"..\">..</a></li>\n");
+        err |= server_static_dir_item(client, "..", false, "folder-close", NULL);
     }
     
     // first server_response_print finishes headers
 	while ((d = readdir(dir))) {
+        const struct server_static_mimetype *mime = NULL;
+
         if (d->d_name[0] == '.')
             continue;
 
-		if ((err = server_response_print(client, "\t<li><a href=\"%s%s\">%s</a></li>\n",
-                        d->d_name, d->d_type == DT_DIR ? "/" : "",
-                        d->d_name
-                        )))
-            return err;
+        bool isdir = (d->d_type == DT_DIR);
+
+        if ((server_static_lookup_mimetype(&mime, s, d->d_name)) < 0) {
+            log_warning("server_static_lookup_mimetype: %s %s", path, d->d_name);
+        }
+        
+        const char *glyphicon = mime ? mime->glyphicon : NULL;
+        const char *title = mime ? mime->content_type : NULL;
+        
+        if (!glyphicon) {
+            glyphicon = isdir ? "folder-open" : "file";
+        }
+        
+        if ((err = server_static_dir_item(client, d->d_name, isdir, glyphicon, title)))
+            break;
 	}
     
-    err |= server_response_print(client, "</body></ul>\n");
-    err |= server_response_print(client, "</html>\n");
+    err |= server_response_print(client, 
+            "\t\t</ul>\n"
+            "\t</div></body>\n"
+            "</html>\n"
+            );
 
-	return 0;
+	return err;
 }
 
 /*
