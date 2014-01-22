@@ -65,7 +65,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
 /*
  * Return the most sensible HTTP status code for the current errno value.
  */
-int server_static_error (struct server_static *ss, const char *path)
+enum http_status server_static_error ()
 {
     switch (errno) {
         case EACCES:        return 403;
@@ -76,6 +76,7 @@ int server_static_error (struct server_static *ss, const char *path)
         default:            return 500;
     }
 }
+
 
 /*
  * Lookup request target file, returning an open fd and stat.
@@ -106,13 +107,14 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int *fd
     // pre-check
 	if ((fd = open(path, O_RDONLY)) < 0) {
 		log_perror("open %s", path);
-        ret = server_static_error(ss, reqpath);
+        ret = server_static_error();
         goto error;
 	}
 
     // verify
     if (!realpath(path, rootpath)) {
         log_perror("realpath");
+        ret = server_static_error();
         goto error;
     }
 
@@ -125,7 +127,7 @@ int server_static_lookup (struct server_static *ss, const char *reqpath, int *fd
     // stat for meta
     if (fstat(fd, stat)) {
         log_pwarning("fstatat %s", path);
-        ret = server_static_error(ss, reqpath);
+        ret = server_static_error();
         goto error;
     }
 
