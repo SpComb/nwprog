@@ -100,11 +100,11 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
             "<!DOCTYPE html>\n"
             "<html>\n"
             "\t<head>\n"
-            "\t\t<title>Index of %s</title>\n"
+            "\t\t<title>%s</title>\n"
             "\t\t<link rel='Stylesheet' type='text/css' href='/static/index.css'></link>\n"
             "\t</head>\n"
             "\t<body><div class='container'>\n"
-            "\t\t<h1>Index of <tt>%s</tt></h1>\n"
+            "\t\t<h1><tt>%s</tt></h1>\n"
             "\t\t<ul class='index'>\n", 
             path, path);
 
