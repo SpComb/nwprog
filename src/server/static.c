@@ -33,12 +33,20 @@ int server_static_file (struct server_static *s, struct server_client *client, F
 	return 0;
 }
 
+/*
+ * Send directory listing, in text/html.
+ *
+ * XXX: we assume that the given path is XSS-free.
+ */
 int server_static_dir (struct server_static *s, struct server_client *client, DIR *dir, const char *path)
 {
 	struct dirent *d;
 	int err;
 
-    const char *pathsep = path[strlen(path) - 1] == '/' ? "" : "/";
+    // ensure dir path ends in /
+    if (path[strlen(path) - 1] != '/') {
+        return server_response_redirect(client, NULL, "%s/", path);
+    }
 
 	if ((err = server_response(client, 200, NULL)))
 		return err;
@@ -46,13 +54,20 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
     err |= server_response_header(client, "Content-Type", "text/html");
     err |= server_response_print(client, "<html><head><title>Index of %s</title></head>\n", path);
     err |= server_response_print(client, "<body><h1>Index of %s</h1><ul>\n", path);
+
+    if (strcmp(path, "/") != 0) {
+        err |= server_response_print(client, "<li><a href=\"..\">..</a></li>\n");
+    }
     
     // first server_response_print finishes headers
 	while ((d = readdir(dir))) {
         if (d->d_name[0] == '.')
             continue;
 
-		if ((err = server_response_print(client, "\t<li><a href=\"%s%s%s\">%s</a></li>\n", path, pathsep, d->d_name, d->d_name)))
+		if ((err = server_response_print(client, "\t<li><a href=\"%s%s\">%s</a></li>\n",
+                        d->d_name, d->d_type == DT_DIR ? "/" : "",
+                        d->d_name
+                        )))
             return err;
 	}
     
