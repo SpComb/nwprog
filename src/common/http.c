@@ -8,6 +8,7 @@
 #define _POSIX_C_SOURCE 200112L
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -401,21 +402,20 @@ int http_read_file (struct http *http, FILE *file, size_t content_length)
 {
 	char buf[512];
 	size_t len = sizeof(buf), ret;
+	bool readall = (!content_length);
 	int err;
 
-	if (!content_length && file) {
-		log_debug("no content");
-	}
-
-	while (content_length) {
+	while (readall || content_length) {
 		len = sizeof(buf);
+		
+		if (content_length) {
+			log_debug("content_length: %zu", content_length);
+			
+			// cap to expected dat
+			if (content_length < len)
+				len = content_length;
+		}
 
-		log_debug("content_length: %zu", content_length);
-		
-		// cap to expected dat
-		if (content_length < len)
-			len = content_length;
-		
 		// read block
 		if ((err = http_read(http, buf, &len)) < 0) {
 			return err;
@@ -427,13 +427,15 @@ int http_read_file (struct http *http, FILE *file, size_t content_length)
 		} else {
 			log_debug("read: %zu", len);
 		}
-
-		// sanity-check
-		if (len <= content_length) {
-			content_length -= len;
-		} else {
-			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
-			return -1;
+		
+		if (content_length) {
+			// sanity-check
+			if (len <= content_length) {
+				content_length -= len;
+			} else {
+				log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
+				return -1;
+			}
 		}
 
 		// copy to stdout

@@ -128,6 +128,8 @@ int http_read_raw (struct http *http, char *buf, size_t *lenp);
 
 /*
  * Read the response body into FILE, or discard if NULL.
+ *
+ * If content_length is given as 0, reads all content.
  */
 int http_read_file (struct http *http, FILE *file, size_t content_length);
 
