@@ -314,6 +314,23 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 	return 0;
 }
 
+int server_response_error (struct server_client *client, enum http_status status, const char *reason)
+{
+    if (!reason)
+		reason = http_status_str(status);
+
+    if ((
+                server_response(client, status, reason)
+            ||  server_response_header(client, "Content-Type", "text/html")
+            ||  server_response_print(client, "<html><head><title>HTTP %d %s</title></head>\n", status, reason)
+            ||  server_response_print(client, "<body><h1>HTTP %d %s</h1></body>", status, reason)
+            ||  server_response_print(client, "</html>\n")
+    ))
+        return -1;
+
+    return status;
+}
+
 int server_client_request (struct server *server, struct server_client *client)
 {
 	struct server_handler *handler = NULL;
@@ -356,7 +373,7 @@ error:
 		log_warning("status %u already sent, should be %u", client->status, status);
 
 	} else if (status) {
-		if (server_response(client, status, NULL)) {
+		if (server_response_error(client, status, NULL)) {
 			log_warning("failed to send response status");
 			err = -1;
 		}
