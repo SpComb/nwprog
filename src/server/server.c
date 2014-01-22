@@ -79,6 +79,11 @@ int server_add_handler (struct server *server, const char *method, const char *p
 {
 	struct server_handler_item *h = NULL;
 
+	if (!handler) {
+		log_fatal("NULL handler given");
+		return -1;
+	}
+
 	if (!(h = calloc(1, sizeof(*h)))) {
 		log_pwarning("calloc");
 		return -1;
@@ -99,13 +104,17 @@ int server_add_handler (struct server *server, const char *method, const char *p
 int server_lookup_handler (struct server *server, const char *method, const char *path, struct server_handler **handlerp)
 {
 	struct server_handler_item *h;
+	enum http_status status = 404;
 
 	TAILQ_FOREACH(h, &server->handlers, server_handlers) {
-		if (h->method && strcmp(h->method, method))
-			continue;
-
 		if (h->path && strncmp(h->path, path, strlen(h->path)))
 			continue;
+		
+		if (h->method && strcmp(h->method, method)) {
+			// chain along so that a matching path but mismatching method is 405
+			status = 405;
+			continue;
+		}
 		
 		log_debug("%s", h->path);
 
@@ -113,8 +122,8 @@ int server_lookup_handler (struct server *server, const char *method, const char
 		return 0;
 	}
 	
-	log_warning("%s: not found", path);
-	return 404;
+	log_warning("%s: %d", path, status);
+	return status;
 }
 
 int server_request (struct server_client *client)
