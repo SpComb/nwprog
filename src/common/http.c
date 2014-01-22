@@ -24,15 +24,19 @@ static const char * http_status_str (enum http_status status)
 		case 200:	return "OK";
 
 		case 400:	return "Bad Request";
+		case 403:   return "Forbidden";
 		case 404:	return "Not Found";
+		case 405:   return "Method Not Allowed";
+		case 411:   return "Length Required";
+		case 413:   return "Request Entity Too Large";
+		case 414:   return "Request-URI Too Long";
 
 		case 500:	return "Internal Server Error";
-		
+
 		// hrhr
 		default:	return "Unknown Response Status";
 	}
 }
-
 
 int http_create (struct http **httpp, struct stream *read, struct stream *write)
 {
