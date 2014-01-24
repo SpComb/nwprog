@@ -33,6 +33,10 @@ struct event_task {
     struct event_main *event_main;
 
     const char *name;
+    event_task_func *func;
+    void *ctx;
+
+    bool exit;
 
     coroutine_t co;
     void *co_stack;
@@ -80,14 +84,32 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd)
 void event_switch (struct event_main *event_main, struct event_task *task)
 {
     struct event_task *main_task = event_main->task;
+    const char *main_task_name = main_task ? main_task->name : "*";
 
-    log_debug("%s -> %s", main_task ? main_task->name : "*", task->name);
+    log_debug("%s -> %s", main_task_name, task->name);
 
     event_main->task = task;
     co_call(task->co);
     event_main->task = main_task;
-    
-    log_debug("%s <- %s", main_task ? main_task->name : "*", task->name);
+
+    if (task->exit) {
+        log_debug("%s <- %s: exit %d", main_task_name, task->name, task->exit);
+
+        free(task->co_stack);
+        free(task);
+    } else {
+        log_debug("%s <- %s", main_task_name, task->name);
+    }
+}
+
+static void _event_main (void *ctx)
+{
+    struct event_task *task = ctx;
+
+    task->func(task->ctx);
+
+    // exit
+    task->exit = 1;
 }
 
 int _event_start (struct event_main *event_main, const char *name, event_task_func *func, void *ctx)
@@ -106,7 +128,10 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
         goto error;
     }
 
-    if (!(task->co = co_create(func, ctx, task->co_stack, EVENT_TASK_SIZE))) {
+    task->func = func;
+    task->ctx = ctx;
+
+    if (!(task->co = co_create(_event_main, task, task->co_stack, EVENT_TASK_SIZE))) {
         log_perror("co_create");
         goto error;
     }

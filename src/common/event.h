@@ -36,6 +36,8 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd);
 
 /*
  * Boot up the given event task.
+ *
+ * The task will be cleaned up once the func returns.
  */
 int _event_start (struct event_main *event_main, const char *name, event_task_func *func, void *ctx);
 #define event_start(event_main, func, ctx) _event_start(event_main, #func, func, ctx)
