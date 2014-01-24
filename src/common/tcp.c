@@ -24,6 +24,11 @@ int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
         }
     }
 
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
+    }
+
     if (err) {
         log_error("sock_read");
         return -1;
@@ -44,6 +49,11 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
         }
     }
 
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
+    }
+
     if (err) {
         log_error("sock_write");
         return -1;
@@ -52,9 +62,41 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
     return 0;
 }
 
+int tcp_stream_sendfile (int fd, size_t *sizep, void *ctx)
+{
+    struct tcp *tcp = ctx;
+    int err;
+
+    if (!*sizep) {
+        // XXX: choose a random default
+        *sizep = TCP_STREAM_SIZE;
+    }
+
+    while ((err = sock_sendfile(tcp->sock, fd, sizep)) > 0 && tcp->event) {
+        if (event_yield(tcp->event, EVENT_WRITE)) {
+            log_error("event_write");
+            return -1;
+        }
+    }
+
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
+    }
+
+    if (err) {
+        log_error("sock_write");
+        return -1;
+    }
+
+    return 0;
+
+}
+
 static const struct stream_type tcp_stream_type = {
-    .read   = tcp_stream_read,
-    .write  = tcp_stream_write,
+    .read       = tcp_stream_read,
+    .write      = tcp_stream_write,
+    .sendfile   = tcp_stream_sendfile,
 };
 
 int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
