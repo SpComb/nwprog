@@ -179,6 +179,8 @@ int event_yield (struct event *event, int flags)
 void event_destroy (struct event *event)
 {
     TAILQ_REMOVE(&event->event_main->events, event, event_main_events);
+
+    free(event);
 }
 
 int event_main_run (struct event_main *event_main)
