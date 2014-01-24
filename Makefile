@@ -1,9 +1,15 @@
 # vim : set noexpandtab :
 
+# special support for valgrind
+VALGRIND =
+
+CPPDEFS = $(VALGRIND:%=VALGRIND)
+
 CFLAGS = -g -Wall
-CPPFLAGS = -Isrc -std=gnu99
+CPPFLAGS = -Isrc -std=gnu99 $(CPPDEFS:%=-D%)
 LDFLAGS = 
 LIBS = -lpcl
+
 
 SRC_DIRS = $(filter %/,$(wildcard src/*/))
 SRC_COMMON = $(wildcard src/common/*.c)

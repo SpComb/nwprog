@@ -6,7 +6,14 @@ enum event_flag {
     EVENT_WRITE = 0x02,
 };
 
+/*
+ * Maximum stack size for event_task's.
+ *
+ * This is allocated by event_start using malloc(), and will never grow.
+ * However, perhaps we can rely on Linux's lazy malloc() page allocation..
+ */
 #define EVENT_TASK_SIZE 65536
+
 
 /*
  * IO reactor.

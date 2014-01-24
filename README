@@ -13,6 +13,17 @@ Using the supplied Makefile should be enough to build the bin/client binary:
 
 Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_SOURCE=200112L
 
+### Building for debugging
+
+The supplied Makefile supports some additional build configuration options for various debugging configurations.
+
+#### Valgrind
+
+Due to the use of multiple stacks, running the server under valgrind will report spurious errors. This can be avoided
+with the use of special valgrind-specific instrumentation to register the separate stack frames:
+
+    $ make -B VALGRIND=1
+
 ## Client
 
 	$ ./bin/client -h

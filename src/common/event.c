@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <sys/queue.h>
 
+#ifdef VALGRIND
+#include <valgrind/valgrind.h>
+#endif // VALGRIND
+
 struct event_main {
     struct event_task *task;
 
@@ -31,6 +35,11 @@ struct event_task {
     const char *name;
 
     coroutine_t co;
+    void *co_stack;
+
+#ifdef VALGRIND
+    int co_valgrind;
+#endif
 };
 
 int event_main_create (struct event_main **event_mainp)
@@ -92,16 +101,31 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
 
     task->name = name;
 
-    if (!(task->co = co_create(func, ctx, NULL, EVENT_TASK_SIZE))) {
+    if (!(task->co_stack = malloc(EVENT_TASK_SIZE))) {
+        log_perror("malloc co_stack");
+        goto error;
+    }
+
+    if (!(task->co = co_create(func, ctx, task->co_stack, EVENT_TASK_SIZE))) {
         log_perror("co_create");
         goto error;
     }
+
+#ifdef VALGRIND
+    task->co_valgrind = VALGRIND_STACK_REGISTER(task->co_stack, task->co_stack + EVENT_TASK_SIZE);
+    log_info("VALGRIND_STACK_REGISTER(%p, %p) = %d",
+            task->co_stack, 
+            task->co_stack + EVENT_TASK_SIZE,
+            task->co_valgrind
+    );
+#endif
 
     event_switch(event_main, task);
 
     return 0;
 
 error:
+    free(task->co_stack);
     free(task);
 
     return -1;
