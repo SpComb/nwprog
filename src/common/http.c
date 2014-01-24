@@ -251,18 +251,18 @@ int http_write_headers (struct http *http)
 
 int http_write_file (struct http *http, int fd, size_t content_length)
 {
-    bool readall = !!content_length;
+    bool readall = !content_length;
     int err;
 
 	while (content_length || readall) {
-		log_debug("content_length: %zu", content_length);
-
         size_t size = content_length;
 
         if ((err = stream_write_file(http->write, fd, &size)) < 0) {
             log_warning("stream_write_file %zu", size);
             return err;
         }
+		
+        log_debug("content_length=%zu write=%zu", content_length, size);
 
         if (err) {
             // EOF
@@ -270,13 +270,15 @@ int http_write_file (struct http *http, int fd, size_t content_length)
         }
 		
 		// sanity-check
-		if (content_length && size > content_length) {
-			log_fatal("BUG: write=%zu > content_length=%zu", size, content_length);
-			return -1;
-		}
+		if (content_length) {
+            if (size > content_length) {
+                log_fatal("BUG: write=%zu > content_length=%zu", size, content_length);
+                return -1;
+            }
 
-        content_length -= size;
-	}
+            content_length -= size;
+        }
+    }
 
 	if (content_length) {
 		log_warning("premature EOF: %zu", content_length);
@@ -367,6 +369,7 @@ int http_read_header (struct http *http, const char **headerp, const char **valu
 
 	if (err) {
 		// XXX: interpret EOF as end-of-headers?
+        log_warning("eof during headers");
 		return 1;
 	}
 	
@@ -383,57 +386,48 @@ int http_read_raw (struct http *http, char *buf, size_t *lenp)
 	return http_read(http, buf, lenp);
 }
 
-int http_read_file (struct http *http, FILE *file, size_t content_length)
+int http_read_file (struct http *http, int fd, size_t content_length)
 {
-	char buf[512];
-	size_t len = sizeof(buf), ret;
-	bool readall = (!content_length);
-	int err;
+    bool readall = !content_length;
+    int err;
 
-	while (readall || content_length) {
-		len = sizeof(buf);
+	while (content_length || readall) {
+		log_debug("content_length: %zu", content_length);
+
+        size_t size = content_length;
+        
+        if (fd >= 0) {
+            if ((err = stream_read_file(http->read, fd, &size)) < 0) {
+                log_warning("stream_read_file %zu", size);
+                return err;
+            }
+        } else {
+            char *ignore;
+
+            if ((err = stream_read(http->read, &ignore, &size)) < 0) {
+                log_warning("stream_read %zu", size);
+                return err;
+            }
+        }
+
+        if (err) {
+            // EOF
+            break;
+        }
 		
+		// sanity-check
 		if (content_length) {
-			log_debug("content_length: %zu", content_length);
-			
-			// cap to expected dat
-			if (content_length < len)
-				len = content_length;
-		}
+            if (size > content_length) {
+                log_fatal("BUG: write=%zu > content_length=%zu", size, content_length);
+                return -1;
+            }
 
-		// read block
-		if ((err = http_read(http, buf, &len)) < 0) {
-			return err;
-
-		} else if (err) {
-			// EOF
-			break;
-
-		} else {
-			log_debug("read: %zu", len);
-		}
-		
-		if (content_length) {
-			// sanity-check
-			if (len <= content_length) {
-				content_length -= len;
-			} else {
-				log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
-				return -1;
-			}
-		}
-
-		// copy to stdout
-		if (file && (ret = fwrite(buf, len, 1, file)) != 1) {
-			log_pwarning("fwrite");
-			return -1;
-		}
-		
-		log_debug("write: %zu", len);
+            content_length -= size;
+        }
 	}
-	
+
 	if (content_length) {
-		log_warning("missing content: %zu", content_length);
+		log_warning("premature EOF: %zu", content_length);
 		return 1;
 	}
 
