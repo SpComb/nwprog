@@ -226,17 +226,17 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
         
         { SELF,     '.',    PARENT, PARSE_KEEP  },
         { SELF,     '/',    SELF    },
-        { SELF,     -1,     NAME    },
+        { SELF,     -1,     NAME,   PARSE_KEEP  },
 
         { PARENT,   '/',    PARENT  },
-        { PARENT,   -1,     NAME    },
+        { PARENT,   -1,     NAME,   PARSE_KEEP  },
 
         { NAME,     '/',    NAME    },
 
         { }
     };
     
-    do {
+    while (*lookup) {
         int state = START;
 
         if ((state = tokenize(name, sizeof(name), parsing, &lookup, START)) < 0) {
@@ -290,7 +290,7 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
                 break;
             }
         }
-    } while (*lookup);
+    }
 
     if (filefd) {
         // figure out mimetype from filename
