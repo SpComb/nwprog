@@ -135,7 +135,7 @@ int server_request (struct server_client *client)
 
 	if ((err = http_read_request(client->http, &method, &path, &version))) {
 		log_warning("http_read_request");
-		return err;
+        return 400;
 	}
 
 	if (strlen(method) >= sizeof(client->request_method)) {
@@ -285,13 +285,17 @@ int server_response_headers (struct server_client *client)
 	return 0;
 }
 
-int server_response_file (struct server_client *client, size_t content_length, FILE *file)
+int server_response_file (struct server_client *client, int fd, size_t content_length)
 {
 	int err;
-
-	if ((err = server_response_header(client, "Content-Length", "%zu", content_length))) {
-		return err;
-	}
+    
+    if (content_length) {
+        if ((err = server_response_header(client, "Content-Length", "%zu", content_length)))
+            return err;
+    } else {
+        if ((err = server_response_header(client, "Connection", "close")))
+            return err;
+    }
 	
 	// headers
 	if ((err = server_response_headers(client))) {
@@ -306,8 +310,8 @@ int server_response_file (struct server_client *client, size_t content_length, F
 
 	client->body = true;
 
-	if (http_write_file(client->http, file, content_length)) {
-		log_error("failed to write response body");
+	if (http_write_file(client->http, fd, content_length)) {
+		log_error("http_write_file");
 		return -1;
 	}
 

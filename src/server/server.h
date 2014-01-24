@@ -63,7 +63,7 @@ int server_response_header (struct server_client *client, const char *name, cons
 /*
  * Send response body from file.
  */
-int server_response_file (struct server_client *client, size_t content_length, FILE *file);
+int server_response_file (struct server_client *client, int fd, size_t content_length);
 
 /*
  * Send formatted data as part of the response.

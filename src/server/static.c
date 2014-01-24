@@ -51,7 +51,10 @@ int server_static_lookup_mimetype (const struct server_static_mimetype **mimep, 
     return 1;
 }
 
-int server_static_file_get (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
+/*
+ * Process a GET request for the given resolved file.
+ */
+int server_static_file_get (struct server_static *s, struct server_client *client, int fd, const struct stat *stat, const struct server_static_mimetype *mime)
 {
 	int err;
 
@@ -62,8 +65,13 @@ int server_static_file_get (struct server_static *s, struct server_client *clien
     if (mime && (err = server_response_header(client, "Content-Type", "%s", mime->content_type)))
         return err;
 
-	if ((err = server_response_file(client, stat->st_size, file)))
-		return err;
+    if (stat->st_size > 0) {
+        if ((err = server_response_file(client, fd, stat->st_size)))
+            return err;
+
+    } else {
+        // XXX: empty file
+    }
 
 	return 0;
 }
@@ -367,20 +375,13 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	
 	// check
 	if ((stat.st_mode & S_IFMT) == S_IFREG) {
-		FILE *file;
         
         if ((open_mode == O_RDONLY)) {
-            if (!(file = fdopen(fd, "r"))) {
-                log_pwarning("fdopen");
-                ret = -1;
-                goto error;
-            } else {
-                fd = -1;
-            }
-
-            ret = server_static_file_get(ss, client, file, &stat, mime);
+            ret = server_static_file_get(ss, client, fd, &stat, mime);
 
         } else {
+            FILE *file;
+
             // upload
             if (!(file = fdopen(fd, "w"))) {
                 log_pwarning("fdopen");
@@ -391,11 +392,11 @@ int server_static_request (struct server_handler *handler, struct server_client 
             }
 
             ret = server_static_file_put(ss, client, file, &stat, mime);
-        }
 
-		if (fclose(file)) {
-			log_pwarning("fclose");
-		}
+            if (fclose(file)) {
+                log_pwarning("fclose");
+            }
+        }
 	
 	} else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
 		DIR *dir;
