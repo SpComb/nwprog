@@ -101,14 +101,14 @@ static int server_static_dir_item (struct server_client *client, const char *pat
  *
  * XXX: we assume that the given path is XSS-free.
  */
-int server_static_dir (struct server_static *s, struct server_client *client, DIR *dir, const char *path)
+int server_static_dir (struct server_static *s, struct server_client *client, DIR *dir, const struct url *url)
 {
 	struct dirent *d;
 	int err;
 
     // ensure dir path ends in /
-    if (*path && path[strlen(path) - 1] != '/') {
-        return server_response_redirect(client, NULL, "%s/", path);
+    if (*url->path && url->path[strlen(url->path) - 1] != '/') {
+        return server_response_redirect(client, NULL, "%s/", url->path);
     }
 
 	if ((err = server_response(client, 200, NULL)))
@@ -127,9 +127,10 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
             "\t<body><div class='container'>\n"
             "\t\t<h1><tt>%s</tt></h1>\n"
             "\t\t<ul class='index'>\n", 
-            path, path);
+            url->path, url->path);
 
-    if (strcmp(path, "/") != 0) {
+    if (*url->path) {
+        // underneath root
         err |= server_static_dir_item(client, "..", false, "folder-close", NULL);
     }
     
@@ -145,7 +146,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
         
         // eyecandy
         if ((server_static_lookup_mimetype(&mime, s, d->d_name)) < 0) {
-            log_warning("server_static_lookup_mimetype: %s %s", path, d->d_name);
+            log_warning("server_static_lookup_mimetype: %s%s", url->path, d->d_name);
         }
         
         const char *glyphicon = mime ? mime->glyphicon : NULL;
@@ -407,7 +408,7 @@ int server_static_request (struct server_handler *handler, struct server_client 
             fd = -1;
 		}
 		
-		ret = server_static_dir(ss, client, dir, url->path);
+		ret = server_static_dir(ss, client, dir, url);
 
 		if (closedir(dir)) {
 			log_pwarning("closedir");
