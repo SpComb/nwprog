@@ -191,60 +191,63 @@ enum http_status server_static_error ()
  */
 int server_static_lookup (struct server_static *ss, const char *path, int mode, int *fdp, struct stat *statp, const struct server_static_mimetype **mimep)
 {
+    const char *lookup = path;
+    char name[PATH_MAX] = { 0 };
+	int dirfd = 0, filefd = 0; // assume not using stdin
     int ret = 0;
     
-    // strip off the leading prefix
+    // strip off the leading prefix for our handler
     if (ss->path[strlen(ss->path) - 1] == '/') {
         path += strlen(ss->path) - 1;
     } else {
         path += strlen(ss->path);
     }
 	
+    // any valid request path will always start with a /
     if (*path++ != '/') {
         log_warning("path without leading /: %s", path);
         return 400;
     }
-    
-    // path lookup
-    const char *lookup = path;
-    char name[PATH_MAX] = { 0 };
-	int dirfd = -1, filefd = -1;
 
+    // start from our root directory
     if (stat(ss->root, statp)) {
-        log_pwarning("stat %s", ss->root);
+        log_perror("stat %s", ss->root);
         ret = server_static_error();
         goto error;
     }
 
     if ((dirfd = open(ss->root, O_RDONLY)) < 0) {
         log_perror("open %s", ss->root);
-        return server_static_error();
+        ret = server_static_error();
+        goto error;
     }
     
-    do {
-        enum { START, EMPTY, SELF, PARENT, NAME };
-        static const struct parse parsing[] = {
-            { START,    '/',    EMPTY   },
-            { START,    '.',    SELF,   PARSE_KEEP  },
-            { START,    -1,     NAME,   PARSE_KEEP  },
-            
-            { SELF,     '.',    PARENT, PARSE_KEEP  },
-            { SELF,     '/',    SELF    },
-            { SELF,     -1,     NAME    },
-
-            { PARENT,   '/',    PARENT  },
-            { PARENT,   -1,     NAME    },
-
-            { NAME,     '/',    NAME    },
-
-            { }
-        };
+    // parse and lookup each path component
+    enum { START, EMPTY, SELF, PARENT, NAME };
+    static const struct parse parsing[] = {
+        { START,    '/',    EMPTY   },
+        { START,    '.',    SELF,   PARSE_KEEP  },
+        { START,    -1,     NAME,   PARSE_KEEP  },
         
+        { SELF,     '.',    PARENT, PARSE_KEEP  },
+        { SELF,     '/',    SELF    },
+        { SELF,     -1,     NAME    },
+
+        { PARENT,   '/',    PARENT  },
+        { PARENT,   -1,     NAME    },
+
+        { NAME,     '/',    NAME    },
+
+        { }
+    };
+    
+    do {
         int state = START;
 
         if ((state = tokenize(name, sizeof(name), parsing, &lookup, START)) < 0) {
             log_error("tokenize: %s", lookup);
-            return -1;
+            ret = -1;
+            goto error;
         }
         
         if (state == START || state == EMPTY || state == SELF) {
@@ -252,12 +255,12 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
             continue;
 
         } else if (state == PARENT) {
+            // ..
             log_warning("unsupported directory parent traversal: %s/%s", name, lookup);
-            return 404;
+            ret = 404;
+            goto error;
 
         } else {
-            log_debug("%s", name);
-
             // stat for meta
             if (fstatat(dirfd, name, statp, 0)) {
                 log_pwarning("fstatat %d %s", dirfd, name);
@@ -265,59 +268,62 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
                 goto error;
             }
 
-            if ((statp->st_mode & S_IFMT) == S_IFDIR && *lookup) {
+            if ((statp->st_mode & S_IFMT) == S_IFDIR) {
+                int parentfd = dirfd;
+
                 // iterate into dir
-                if ((filefd = openat(dirfd, name, O_RDONLY)) < 0) {
+                if ((dirfd = openat(parentfd, name, O_RDONLY)) < 0) {
                     log_perror("openat %s", name);
                     ret = server_static_error();
                     goto error;
                 }
+            
+                log_debug("%s/", name);
 
-                close(dirfd);
-                dirfd = filefd;
+                close(parentfd);
 
             } else {
-                // hit target file?
+                // hit target file
                 if ((filefd = openat(dirfd, name, mode, 0644)) < 0) {
                     log_perror("open %s", path);
                     ret = server_static_error();
                     goto error;
                 }
+                
+                log_debug("%s", name);
 
                 break;
             }
         }
     } while (*lookup);
 
-    if (filefd >= 0) {
-        close(dirfd);
-        dirfd = -1;
+    if (filefd) {
+        // figure out mimetype from filename
+        if ((ret = server_static_lookup_mimetype(mimep, ss, name)) < 0) {
+            log_perror("server_static_lookup_mimetype: %s", name);
+            goto error;
+        }
+        
+        if (ret) {
+            log_warning("no mimetype: %s", name);
+            ret = 0;
+            *mimep = NULL;
+        }
+
+        *fdp = filefd;
+        filefd = 0;
+
     } else {
-        filefd = dirfd;
-        dirfd = -1;
+        // directory
+        *fdp = dirfd;
+        dirfd = 0;
     }
-
-    // figure out mimetype, as we have the full path here
-    if ((ret = server_static_lookup_mimetype(mimep, ss, name)) < 0) {
-        log_perror("server_static_lookup_mimetype: %s", name);
-        goto error;
-    }
-    
-    if (ret) {
-        log_warning("no mimetype: %s", name);
-        ret = 0;
-        *mimep = NULL;
-    }
-
-    *fdp = filefd;
-
-    filefd = -1;
 
 error:
-    if (filefd >= 0)
+    if (filefd)
         close(filefd);
 
-    if (dirfd >= 0)
+    if (dirfd)
         close(dirfd);
 
     return ret;
