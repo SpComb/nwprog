@@ -131,15 +131,11 @@ int _stream_clear (struct stream *stream)
 int _stream_read (struct stream *stream)
 {
     int err;
-
-    // make room if needed
-    if ((err = _stream_clear(stream)))
-        return err;
-    
+ 
     // fill up
     size_t size = stream_readbuf_size(stream);
 
-    if ((err = stream->type->read(stream_readbuf_ptr(stream), &size, stream->ctx))) {
+    if ((err = stream->type->read(stream_readbuf_ptr(stream), &size, stream->ctx)) < 0) {
         log_pwarning("stream-read");
         return err;
     }
@@ -204,6 +200,10 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep)
 {
     int err;
     
+    // make room if needed
+    if ((err = _stream_clear(stream)))
+        return err;
+
     // until we have the request amount of data, or any data, or EOF
     while (stream->length < stream->offset + *sizep) {
         if ((err = _stream_read(stream)) < 0)
@@ -237,6 +237,10 @@ int stream_read_line (struct stream *stream, char **linep)
     char *c;
     int err;
     
+    // make room if needed
+    if ((err = _stream_clear(stream)))
+        return err;
+
     while (true) {
         // scan for \r\n
         for (c = stream_writebuf_ptr(stream); c < stream_writebuf_end(stream); c++) {
@@ -256,10 +260,50 @@ int stream_read_line (struct stream *stream, char **linep)
 
 out:
     // start of line
-    *linep = stream->buf + stream->offset;
+    *linep = stream_writebuf_ptr(stream);
 
-    // end of line
-    stream->offset = c - stream->buf + 1;
+    // past end of line
+    stream_write_mark(stream, c - stream_writebuf_ptr(stream) + 1);
+
+    return 0;
+}
+
+int stream_read_file (struct stream *stream, int fd, size_t *sizep)
+{
+    int err;
+    ssize_t ret;
+
+    // make room if needed
+    if ((err = _stream_clear(stream)))
+        return err;
+
+    // read in
+    if ((err = _stream_read(stream)))
+        return err;
+    
+    // write from writebuf
+    size_t size = stream_writebuf_size(stream);
+
+    if (*sizep && *sizep < size)
+        // limit
+        size = *sizep;
+
+    if ((ret = write(fd, stream_writebuf_ptr(stream), size)) < 0) {
+        log_perror("write %d", fd);
+        return -1;
+    }
+
+    if (!ret) {
+        log_debug("write: eof");
+        return 1;
+    }
+
+    stream_write_mark(stream, ret);
+
+    // update
+    *sizep = ret;
+    
+    // TODO: cleanup
 
     return 0;
 }

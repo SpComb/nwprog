@@ -56,6 +56,16 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep);
  */
 int stream_read_line (struct stream *stream, char **linep);
 
+/*
+ * Copy from stream into a file.
+ *
+ * *sizep is the number of bytes to read from stream, or zero to read until EOF.
+ * *sizep is updated on return to reflect the amount of bytes copied, which may be less than *sizep.
+ *
+ * Returns <0 on error, 0 on success, >0 on EOF.
+ */
+int stream_read_file (struct stream *stream, int fd, size_t *sizep);
+
 int stream_write (struct stream *stream, const char *buf, size_t size);
 int stream_vprintf (struct stream *stream, const char *fmt, va_list args);
 int stream_printf (struct stream *stream, const char *fmt, ...);
