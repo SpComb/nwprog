@@ -75,6 +75,8 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 
 /*
  * Send a complete HTTP 301 redirect, using the given host and formatted path.
+ *
+ * The path should not include a leading /
  */
 int server_response_redirect (struct server_client *client, const char *host, const char *fmt, ...);
 

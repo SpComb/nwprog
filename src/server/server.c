@@ -372,7 +372,7 @@ int server_response_redirect (struct server_client *client, const char *host, co
 
 	if ((
 				server_response(client, 301, NULL)
-			||	server_response_header(client, "Location", "http://%s%s", host, path)
+			||	server_response_header(client, "Location", "http://%s/%s", host, path)
 			||	server_response_headers(client)
 	))
 		return -1;
