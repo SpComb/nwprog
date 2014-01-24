@@ -249,57 +249,33 @@ int http_write_headers (struct http *http)
 	return http_write_line(http, "");
 }
 
-
-int http_write_file (struct http *http, FILE *file, size_t content_length)
+int http_write_file (struct http *http, int fd, size_t content_length)
 {
-	char buf[512];
-	size_t ret, len = sizeof(buf);
+    bool readall = !!content_length;
+    int err;
 
-	while (content_length) {
-		len = sizeof(buf);
-
+	while (content_length || readall) {
 		log_debug("content_length: %zu", content_length);
-		
-		// cap to expected dat
-		if (content_length < len)
-			len = content_length;
-		
-		// read block
-		if ((ret = fread(buf, 1, len, file)) < 0) {
-			log_pwarning("fread");
-			return -1;
 
-		} else if (!ret) {
-			log_debug("EOF");
-			break;
-		} else {
-			log_debug("fread: %zu", ret);
-			len = ret;
-		}
+        size_t size = content_length;
 
+        if ((err = stream_write_file(http->write, fd, &size)) < 0) {
+            log_warning("stream_write_file %zu", size);
+            return err;
+        }
+
+        if (err) {
+            // EOF
+            break;
+        }
+		
 		// sanity-check
-		if (len <= content_length) {
-			content_length -= len;
-		} else {
-			log_fatal("BUG: len=%zu > content_length=%zu", len, content_length);
+		if (content_length && size > content_length) {
+			log_fatal("BUG: write=%zu > content_length=%zu", size, content_length);
 			return -1;
 		}
 
-		// copy to request
-		char *bufp = buf;
-		size_t buflen = len;
-		
-		while (len) {
-			if (http_write_buf(http, bufp, &buflen)) {
-				log_error("error writing request body");
-				return -1;
-			}
-
-			log_debug("http_write: %zu", buflen);
-
-			bufp += buflen;
-			len -= buflen;
-		}
+        content_length -= size;
 	}
 
 	if (content_length) {
@@ -357,10 +333,17 @@ int http_read_request (struct http *http, const char **methodp, const char **pat
 	char *line;
 	int err;
 
-	if ((err = http_read_line(http, &line)))
+	if ((err = http_read_line(http, &line))) {
+        log_warning("http_read_line");
 		return err;
+    }
 
-	return http_parse_request(line, methodp, pathp, versionp);
+	if ((err = http_parse_request(line, methodp, pathp, versionp))) {
+        log_warning("http_parse_request");
+        return err;
+    }
+
+    return 0;
 }
 
 int http_read_response (struct http *http, const char **versionp, unsigned *statusp, const char **reasonp)

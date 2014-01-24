@@ -90,12 +90,13 @@ int http_write_header (struct http *http, const char *header, const char *fmt, .
 int http_write_headers (struct http *http);
 
 /*
- * Send a HTTP request body from a FILE.
+ * Send a HTTP request body from a file.
  *
- * Returns 1 on EOF, <0 on error.
+ * content_length, if given, indicates the expected maximum size of the file to send, or until EOF otherwise.
+ *
+ * Returns 1 on (unexpected) EOF, <0 on error.
  */
-int http_write_file (struct http *http, FILE *file, size_t content_length);
-
+int http_write_file (struct http *http, int fd, size_t content_length);
 
 
 
