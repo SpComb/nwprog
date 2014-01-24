@@ -39,7 +39,7 @@ int url_parse (struct url *url, char *buf)
 		HOST,
 		PORT,
 		PATH,
-
+        QUERY,
 	};
     struct parse parsing[] = {
         { START,        '/',        START_SEP   },
@@ -47,7 +47,9 @@ int url_parse (struct url *url, char *buf)
         { START,        0,          HOST,       PARSE_STRING,   			.parse_string = &url->host			},
 
         { START_SEP,    '/',        HOST        },
+        { START_SEP,    '?',        QUERY,      PARSE_STRING,               .parse_string = &url->path          },
         { START_SEP,    0,          PATH,       PARSE_STRING,   			.parse_string = &url->path          },
+        { START_SEP,    -1,         PATH,       PARSE_STRING | PARSE_KEEP,  .parse_string = &url->path          },
 
         { SCHEME,       '/',        SCHEME_SEP,	PARSE_STRING,				.parse_string = &url->scheme		},
         { SCHEME,       -1,         PORT,       PARSE_STRING | PARSE_KEEP, 	.parse_string = &url->host			},
@@ -60,8 +62,11 @@ int url_parse (struct url *url, char *buf)
 
         { PORT,         '/',        PATH,       PARSE_STRING,   			.parse_string = &url->port          },
         { PORT,         0,          PORT,       PARSE_STRING,   			.parse_string = &url->port          },
-
+        
+        { PATH,         '?',        QUERY,      PARSE_STRING,               .parse_string = &url->path          },
         { PATH,         0,          PATH,       PARSE_STRING,   			.parse_string = &url->path          },
+
+        { QUERY,        0,          QUERY,      PARSE_STRING,               .parse_string = &url->query         },
 
         { }
     }; 

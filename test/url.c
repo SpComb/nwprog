@@ -25,6 +25,11 @@ struct test_url {
     { "scheme://host/path",         { .scheme = "scheme", .host = "host", .path = "path" } },
     
     { "scheme:///path",             { .scheme = "scheme", .host = "", .path = "path" } },
+
+    { "/path",                      { .path = "path" } },
+    { "/path/",                     { .path = "path/" } },
+    { "/path?query",                { .path = "path", .query = "query" } },
+
     { }
 };
 

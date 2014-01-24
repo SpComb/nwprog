@@ -10,9 +10,9 @@ struct url {
 
 	/* URL path *without* leading / */
 	const char *path;
-
-	/* Pointer to error in URL */
-	const char *err;
+    
+    /* Any ?... query string */
+    const char *query;
 };
 
 /* Maximum supported url length */
