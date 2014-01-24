@@ -1,6 +1,7 @@
 #include "server/static.h"
 
 #include "common/log.h"
+#include "common/parse.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -19,8 +20,6 @@ struct server_static {
 	const char *root;
     const char *path;
     int flags;
-
-    char *realpath;
 };
 
 struct server_static_mimetype {
@@ -178,6 +177,7 @@ enum http_status server_static_error ()
         case EACCES:        return 403;
         case EISDIR:        return 405;
         case ENAMETOOLONG:  return 414;
+        case ELOOP:         return 404; // TODO: something better
         case ENOENT:        return 404;
         case ENOTDIR:       return 404;
         default:            return 500;
@@ -189,81 +189,136 @@ enum http_status server_static_error ()
  *
  * `mode` is the set of open flags to use, usually O_RDONLY, but can be used to create/write files for upload.
  */
-int server_static_lookup (struct server_static *ss, const char *reqpath, int mode, int *fdp, struct stat *stat, const struct server_static_mimetype **mimep)
+int server_static_lookup (struct server_static *ss, const char *path, int mode, int *fdp, struct stat *statp, const struct server_static_mimetype **mimep)
 {
-    char path[PATH_MAX], rootpath[PATH_MAX];
-	int fd = -1;
-    int ret;
+    int ret = 0;
     
     // strip off the leading prefix
     if (ss->path[strlen(ss->path) - 1] == '/') {
-        reqpath += strlen(ss->path) - 1;
+        path += strlen(ss->path) - 1;
     } else {
-        reqpath += strlen(ss->path);
+        path += strlen(ss->path);
     }
 	
-    if (*reqpath != '/') {
-        log_warning("path without leading /: %s", reqpath);
+    if (*path++ != '/') {
+        log_warning("path without leading /: %s", path);
         return 400;
     }
     
-    // build filesystem path
-    if ((ret = snprintf(path, sizeof(path), "%s%s", ss->root, reqpath)) < 0) {
-        log_perror("snprintf");
-        return -1;
-    }
+    // path lookup
+    const char *lookup = path;
+    char name[PATH_MAX] = { 0 };
+	int dirfd = -1, filefd = -1;
 
-    if (ret >= sizeof(path)) {
-        log_warning("path is too long: %d", ret);
-        return 414;
-    }
-	
-    log_debug("%s", path);
-
-    // verify
-    if (!realpath(path, rootpath)) {
-        log_perror("realpath %s", path);
+    if (stat(ss->root, statp)) {
+        log_pwarning("stat %s", ss->root);
         ret = server_static_error();
         goto error;
     }
 
-    if (strncmp(ss->realpath, rootpath, strlen(ss->realpath)) != 0) {
-        log_warning("path outside of root: %s", path);
-        ret = 403;
-        goto error;
+    if ((dirfd = open(ss->root, O_RDONLY)) < 0) {
+        log_perror("open %s", ss->root);
+        return server_static_error();
     }
+    
+    do {
+        enum { START, EMPTY, SELF, PARENT, NAME };
+        static const struct parse parsing[] = {
+            { START,    '/',    EMPTY   },
+            { START,    '.',    SELF,   PARSE_KEEP  },
+            { START,    -1,     NAME,   PARSE_KEEP  },
+            
+            { SELF,     '.',    PARENT, PARSE_KEEP  },
+            { SELF,     '/',    SELF    },
+            { SELF,     -1,     NAME    },
 
-    // open on disk
-	if ((fd = open(path, mode, 0644)) < 0) {
-		log_perror("open %s", path);
-        ret = server_static_error();
-        goto error;
-	}
+            { PARENT,   '/',    PARENT  },
+            { PARENT,   -1,     NAME    },
 
-    // stat for meta
-    if (fstat(fd, stat)) {
-        log_pwarning("fstatat %s", path);
-        ret = server_static_error();
-        goto error;
+            { NAME,     '/',    NAME    },
+
+            { }
+        };
+        
+        int state = START;
+
+        if ((state = tokenize(name, sizeof(name), parsing, &lookup, START)) < 0) {
+            log_error("tokenize: %s", lookup);
+            return -1;
+        }
+        
+        if (state == START || state == EMPTY || state == SELF) {
+            // skip
+            continue;
+
+        } else if (state == PARENT) {
+            log_warning("unsupported directory parent traversal: %s/%s", name, lookup);
+            return 404;
+
+        } else {
+            log_debug("%s", name);
+
+            // stat for meta
+            if (fstatat(dirfd, name, statp, 0)) {
+                log_pwarning("fstatat %d %s", dirfd, name);
+                ret = server_static_error();
+                goto error;
+            }
+
+            if ((statp->st_mode & S_IFMT) == S_IFDIR && *lookup) {
+                // iterate into dir
+                if ((filefd = openat(dirfd, name, O_RDONLY)) < 0) {
+                    log_perror("openat %s", name);
+                    ret = server_static_error();
+                    goto error;
+                }
+
+                close(dirfd);
+                dirfd = filefd;
+
+            } else {
+                // hit target file?
+                if ((filefd = openat(dirfd, name, mode, 0644)) < 0) {
+                    log_perror("open %s", path);
+                    ret = server_static_error();
+                    goto error;
+                }
+
+                break;
+            }
+        }
+    } while (*lookup);
+
+    if (filefd >= 0) {
+        close(dirfd);
+        dirfd = -1;
+    } else {
+        filefd = dirfd;
+        dirfd = -1;
     }
 
     // figure out mimetype, as we have the full path here
-    if ((ret = server_static_lookup_mimetype(mimep, ss, path)) < 0) {
-        log_perror("server_static_lookup_mimetype: %s", path);
+    if ((ret = server_static_lookup_mimetype(mimep, ss, name)) < 0) {
+        log_perror("server_static_lookup_mimetype: %s", name);
         goto error;
     }
     
     if (ret) {
-        log_warning("no mimetype: %s", path);
+        log_warning("no mimetype: %s", name);
+        ret = 0;
         *mimep = NULL;
     }
 
-    *fdp = fd;
-    return 0;
+    *fdp = filefd;
+
+    filefd = -1;
 
 error:
-    if (fd >= 0)
-        close(fd);
+    if (filefd >= 0)
+        close(filefd);
+
+    if (dirfd >= 0)
+        close(dirfd);
 
     return ret;
 }
@@ -384,11 +439,6 @@ int server_static_create (struct server_static **sp, const char *root, struct se
     s->path = path;
     s->flags = flags;
 
-    if (!(s->realpath = realpath(root, NULL))) {
-        log_perror("realpath %s", root);
-        goto error;
-    }
-	
 	s->handler.request = server_static_request;
 
     const char *method = (flags & SERVER_STATIC_PUT) ? "PUT" : "GET";
@@ -410,6 +460,5 @@ error:
 
 void server_static_destroy (struct server_static *s)
 {
-    free(s->realpath);
 	free(s);
 }
