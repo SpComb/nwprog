@@ -24,14 +24,14 @@ int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
         }
     }
 
-    if (!*sizep) {
-        log_debug("eof");
-        return 1;
-    }
-
     if (err) {
         log_error("sock_read");
         return -1;
+    }
+
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
     }
 
     return 0;
@@ -49,14 +49,14 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
         }
     }
 
-    if (!*sizep) {
-        log_debug("eof");
-        return 1;
-    }
-
     if (err) {
         log_error("sock_write");
         return -1;
+    }
+
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
     }
 
     return 0;
@@ -79,14 +79,14 @@ int tcp_stream_sendfile (int fd, size_t *sizep, void *ctx)
         }
     }
 
-    if (!*sizep) {
-        log_debug("eof");
-        return 1;
-    }
-
     if (err) {
         log_error("sock_write");
         return -1;
+    }
+
+    if (!*sizep) {
+        log_debug("eof");
+        return 1;
     }
 
     return 0;
