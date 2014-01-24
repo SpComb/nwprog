@@ -216,7 +216,12 @@ int event_main_run (struct event_main *event_main)
             return -1; 
         }
 
-        TAILQ_FOREACH(event, &event_main->events, event_main_events) {
+        // event_destroy -safe loop...
+        struct event *event_next;
+
+        for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
+            event_next = TAILQ_NEXT(event, event_main_events);
+
             int flags = 0;
 
             if (FD_ISSET(event->fd, &read))
@@ -230,7 +235,8 @@ int event_main_run (struct event_main *event_main)
 
                 event->flags = 0;
                 event->task = NULL;
-
+                
+                // this may event_destroy(event)
                 event_switch(event_main, task);
             }
         }
