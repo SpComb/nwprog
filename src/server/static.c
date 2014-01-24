@@ -400,6 +400,11 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	
 	} else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
 		DIR *dir;
+        
+		if (!(open_mode == O_RDONLY)) {
+			log_warning("put to directory: %s", path);
+			return 405;
+		}
 
 		if (!(dir = fdopendir(fd))) {
 			log_pwarning("fdiropen");
