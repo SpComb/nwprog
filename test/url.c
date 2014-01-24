@@ -1,7 +1,7 @@
+#include "test.h"
+
 #include "common/url.h"
 #include "common/log.h"
-
-#include "test.h"
 
 #include <stdio.h>
 
