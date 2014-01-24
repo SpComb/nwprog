@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 
 int sockaddr_buf (char *buf, size_t buflen, const struct sockaddr *sa, socklen_t salen)
@@ -142,6 +143,28 @@ int sock_write (int sock, const char *buf, size_t *sizep)
 
     } else {
         log_perror("write");
+        return -1;
+    }
+}
+
+int sock_sendfile (int sock, int fd, size_t *sizep)
+{
+    int ret = sendfile(sock, fd, NULL, *sizep);
+
+    if (ret > 0) {
+        *sizep = ret;
+        return 0;
+
+    } else if (!ret) {
+        log_debug("eof");
+        *sizep = 0;
+        return 0;
+
+    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return 1;
+
+    } else {
+        log_perror("sendfile");
         return -1;
     }
 }

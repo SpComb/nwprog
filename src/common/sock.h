@@ -55,5 +55,13 @@ int sock_read (int sock, char *buf, size_t *sizep);
  */
 int sock_write (int sock, const char *buf, size_t *sizep);
 
+/*
+ * Copy from file to socket.
+ *
+ * Returns *sizep == 0 on EOF.
+ *
+ * Returns 1 on nonblocking, 0 on success, <0 on error.
+ */
+int sock_sendfile (int sock, int fd, size_t *sizep);
 
 #endif
