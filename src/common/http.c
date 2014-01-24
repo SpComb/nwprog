@@ -24,6 +24,8 @@ const char * http_status_str (enum http_status status)
 	switch (status) {
 		case 200:	return "OK";
 
+		case 301:   return "Found";
+
 		case 400:	return "Bad Request";
 		case 403:   return "Forbidden";
 		case 404:	return "Not Found";
