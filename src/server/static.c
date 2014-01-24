@@ -107,7 +107,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
 	int err;
 
     // ensure dir path ends in /
-    if (path[strlen(path) - 1] != '/') {
+    if (*path && path[strlen(path) - 1] != '/') {
         return server_response_redirect(client, NULL, "%s/", path);
     }
 
@@ -198,17 +198,11 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
     
     // strip off the leading prefix for our handler
     if (ss->path[strlen(ss->path) - 1] == '/') {
-        path += strlen(ss->path) - 1;
+        path += strlen(ss->path) - 1 - 1;
     } else {
-        path += strlen(ss->path);
+        path += strlen(ss->path) - 1;
     }
 	
-    // any valid request path will always start with a /
-    if (*path++ != '/') {
-        log_warning("path without leading /: %s", path);
-        return 400;
-    }
-
     // start from our root directory
     if (stat(ss->root, statp)) {
         log_perror("stat %s", ss->root);
@@ -332,7 +326,7 @@ error:
 /*
  * Request handler.
  */
-int server_static_request (struct server_handler *handler, struct server_client *client, const char *method, const char *path)
+int server_static_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
 	struct server_static *ss = (struct server_static *) handler;
     const struct server_static_mimetype *mime = NULL;
@@ -360,15 +354,15 @@ int server_static_request (struct server_handler *handler, struct server_client 
         open_mode = O_WRONLY | O_CREAT | O_TRUNC;
 
     } else {
-        log_warning("unknown method: %s %s", method, path);
+        log_warning("unknown method: %s %s", method, url->path);
         return 400;
     }
 
-    if ((ret = server_static_lookup(ss, path, open_mode, &fd, &stat, &mime))) {
+    if ((ret = server_static_lookup(ss, url->path, open_mode, &fd, &stat, &mime))) {
         return ret;
     }
 
-	log_info("%s %s %s %s", ss->root, method, path, mime ? mime->content_type : "(unknown mimetype)");
+	log_info("%s %s %s %s", ss->root, method, url->path, mime ? mime->content_type : "(unknown mimetype)");
 	
 	// check
 	if ((stat.st_mode & S_IFMT) == S_IFREG) {
@@ -413,14 +407,14 @@ int server_static_request (struct server_handler *handler, struct server_client 
             fd = -1;
 		}
 		
-		ret = server_static_dir(ss, client, dir, path);
+		ret = server_static_dir(ss, client, dir, url->path);
 
 		if (closedir(dir)) {
 			log_pwarning("closedir");
 		}
 
 	} else {
-		log_warning("%s/%s: not a file", ss->root, path);
+		log_warning("%s/%s: not a file", ss->root, url->path);
 		ret = 404;
 		goto error;
 	}

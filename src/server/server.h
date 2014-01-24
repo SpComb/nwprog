@@ -3,6 +3,7 @@
 
 #include "common/event.h"
 #include "common/http.h"
+#include "common/url.h"
 
 #include <stdio.h>
 
@@ -16,14 +17,7 @@ struct server_client;
  * Request handler.
  */
 struct server_handler {
-	int (*request)(struct server_handler *handler, struct server_client *client, const char *method, const char *path);
-
-/*
-	int (*request_header)(struct server_handler *handler, struct server_client *client, const char *name, const char *value);
-	int (*request_body)(struct server_handler *handler, struct server_client *client, size_t content_length, FILE **filep);
-
-	int (*response)(struct server_handler *handler, struct server_client *client);
-*/
+	int (*request)(struct server_handler *handler, struct server_client *client, const char *method, const struct url *url);
 };
 
 /*

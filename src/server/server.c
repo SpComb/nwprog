@@ -42,8 +42,10 @@ struct server_client {
 
 	/* Request */
 	char request_method[HTTP_METHOD_MAX];
-	char request_path[HTTP_PATH_MAX];
-	char request_host[HTTP_HOST_MAX];
+	char request_pathbuf[HTTP_PATH_MAX];
+	char request_hostbuf[HTTP_HOST_MAX];
+
+    struct url request_url;
 	
 	size_t request_content_length;
 	
@@ -143,12 +145,23 @@ int server_request (struct server_client *client)
 		strncpy(client->request_method, method, sizeof(client->request_method));
 	}
 
-	if (strlen(path) >= sizeof(client->request_path)) {
+	if (strlen(path) >= sizeof(client->request_pathbuf)) {
 		log_warning("path is too long: %zu", strlen(path));
 		return 400;
 	} else {
-		strncpy(client->request_path, path, sizeof(client->request_path));
+		strncpy(client->request_pathbuf, path, sizeof(client->request_pathbuf));
 	}
+    
+    if ((err = url_parse(&client->request_url, client->request_pathbuf))) {
+        log_warning("url_parse: %s", client->request_pathbuf);
+        return 400;
+    }
+
+    if (client->request_url.scheme || client->request_url.host || client->request_url.port) {
+        log_warning("request url includes extra parts: scheme=%s host=%s port=%s",
+                client->request_url.scheme, client->request_url.host, client->request_url.port);
+        return 400;
+    }
 
 	log_info("%s %s %s", method, path, version);
 
@@ -177,12 +190,15 @@ int server_request_header (struct server_client *client, const char **namep, con
 
 		log_debug("content_length=%zu", client->request_content_length);
 	} else if (strcasecmp(*namep, "Host") == 0) {
-		if (strlen(*valuep) >= sizeof(client->request_host)) {
+		if (strlen(*valuep) >= sizeof(client->request_hostbuf)) {
 			log_warning("host is too long: %zu", strlen(*valuep));
 			return 400;
 		} else {
-			strncpy(client->request_host, *valuep, sizeof(client->request_host));
+			strncpy(client->request_hostbuf, *valuep, sizeof(client->request_hostbuf));
 		}
+        
+        // TODO: parse :port?
+        client->request_url.host = client->request_hostbuf;
 	}
 	
 	return 0;
@@ -351,7 +367,7 @@ int server_response_redirect (struct server_client *client, const char *host, co
 
 	// auto
 	if (!host) {
-		host = client->request_host;
+		host = client->request_url.host;
 	}
 
 	if ((
@@ -393,14 +409,14 @@ int server_client_request (struct server *server, struct server_client *client)
 	}
 
 	// handler 
-	if ((err = server_lookup_handler(server, client->request_method, client->request_path, &handler)) < 0) {
+	if ((err = server_lookup_handler(server, client->request_method, client->request_url.path, &handler)) < 0) {
 		goto error;
 
 	} else if (err) {
 		handler = NULL;
 
 	} else {
-		err = handler->request(handler, client, client->request_method, client->request_path);
+		err = handler->request(handler, client, client->request_method, &client->request_url);
 	}
 
 error:	
