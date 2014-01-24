@@ -114,3 +114,40 @@ int parse (const struct parse *parsing, char *str, int state)
 
 	return state;
 }
+
+int tokenize (char *buf, size_t bufsize, const struct parse *parsing, const char **strp, int state)
+{
+    char *out = buf, c;
+    const char *str = *strp;
+    const struct parse *p;
+
+    while ((c = *str++)) {
+        p = parse_step(parsing, state, c);
+
+        if (p) {
+            state = p->next_state;
+        }
+
+        if (!p || (p->type & PARSE_KEEP)) {
+            // token continues
+            *out++ = c;
+        
+        } else if (p && (p->type && PARSE_SKIP)) {
+            // omit
+
+        } else {
+            // end of token
+            break;
+        }
+
+        if (out >= buf + bufsize) {
+            log_warning("token too long");
+            return -1;
+        }
+    }
+
+    *out = '\0';
+    *strp = str;
+
+    return state;
+}

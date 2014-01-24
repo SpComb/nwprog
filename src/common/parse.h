@@ -1,6 +1,8 @@
 #ifndef PARSE_H
 #define PARSE_H
 
+#include <stddef.h>
+
 /*
  * In-place string parsing.
  */
@@ -15,7 +17,7 @@ enum parse_type {
 	/* Flags */
 	PARSE_TYPE		= 0x0f,
 
-	// do not terminiate
+	// do not terminate
 	PARSE_KEEP		= 0x10,
 	
 	// keep token
@@ -48,5 +50,10 @@ struct parse {
  * Parse a string in-place, per given parse state machine.
  */
 int parse (const struct parse *parsing, char *str, int state);
+
+/*
+ * Parse a token from a string into a buffer
+ */
+int tokenize (char *buf, size_t bufsize, const struct parse *parsing, const char **strp, int state);
 
 #endif

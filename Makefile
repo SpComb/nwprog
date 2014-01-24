@@ -46,8 +46,21 @@ bin/server: build/src/server.o \
 	build/src/common/util.o \
 	build/src/common/log.o
 
-bin/test-url: build/test/url.o build/src/common/url.o build/src/common/parse.o build/src/common/log.o
-bin/test-http: build/test/http.o build/src/common/http.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
+bin/test-url: \
+	build/test/url.o \
+	build/test/test.o \
+	build/src/common/url.o build/src/common/parse.o build/src/common/log.o
+
+bin/test-http: \
+	build/test/http.o \
+	build/test/test.o \
+	build/src/common/http.o build/src/common/parse.o build/src/common/util.o build/src/common/log.o
+
+bin/test-parse: \
+	build/test/parse.o \
+	build/test/test.o \
+	build/src/common/parse.o \
+	build/src/common/log.o
 
 build:
 	mkdir -p bin bin/test
