@@ -141,6 +141,35 @@ int client_request_headers (struct client *client, const struct client_request *
 	return err;
 }
 
+/*
+ * Send request body from file.
+ */
+int client_request_file (struct client *client, const struct client_request *request)
+{
+    int fd;
+    int err;
+
+	if (!request->content_file)
+        return 0;
+
+    // XXX: convert 
+    if (fflush(request->content_file)) {
+        log_perror("fflush");
+        return -1;
+    }
+
+    if ((fd = fileno(request->content_file)) < 0) {
+        log_perror("fileno");
+        return -1;
+    }
+    
+    // send; content_length may either be 0 or determined earlier, before sending headers
+    if ((err = http_write_file(client->http, fd, request->content_length)))
+		return err;
+    
+    return 0;
+}
+
 int client_response_header (struct client *client, struct client_response *response, const char *header, const char *value)
 {
 	log_info("\t%20s: %s", header, value);
@@ -155,6 +184,35 @@ int client_response_header (struct client *client, struct client_response *respo
 	}
 
 	return 0;
+}
+
+/*
+ * Read response body to file.
+ */
+int client_response_file (struct client *client, struct client_response *response)
+{
+    int fd;
+    int err;
+
+	if (!response->content_file)
+        return 0;
+
+    // XXX: convert 
+    if (fflush(response->content_file)) {
+        log_perror("fflush");
+        return -1;
+    }
+
+    if ((fd = fileno(response->content_file)) < 0) {
+        log_perror("fileno");
+        return -1;
+    }
+    
+    // send; content_length may either be 0 or determined earlier, when reading headers
+    if ((err = http_read_file(client->http, fd, response->content_length)))
+		return err;
+    
+    return 0;
 }
 
 static int client_request (struct client *client, struct client_request *request, struct client_response *response)
@@ -178,9 +236,11 @@ static int client_request (struct client *client, struct client_request *request
 		log_error("error sending request end-of-headers");
 		return err;
 	}
-
-	if (request->content_file && (err = http_write_file(client->http, request->content_file, request->content_length)))
-		return err;
+    
+    if ((err = client_request_file(client, request))) {
+        log_error("error sending request file");
+        return err;
+    }
 
 	log_debug("end-of-request");
 	
@@ -224,21 +284,21 @@ static int client_request (struct client *client, struct client_request *request
 		err = 0;
 
 	} else if (response->content_length) {
-		if ((err = http_read_file(client->http, response->content_file, response->content_length)))
-			return err;
+        if ((err = client_response_file(client, response)))
+            return err;
 		
 		// more requests
 		err = 0;
 
 	} else {
-		if ((err = http_read_file(client->http, response->content_file, 0)))
-			return err;
+        if ((err = client_response_file(client, response)))
+            return err;
 
 		// to end of connection
 		err = 1;
 	}
 	
-	log_info("");
+	log_info("%s", "");
 
 	return err;
 }
