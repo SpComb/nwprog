@@ -3,6 +3,7 @@
 This coursework project consists of several parts:
 
 *	A HTTP *client* supporting HTTP/1.0 GET and PUT methods with local files.
+*   A HTTP *server* supporting HTTP/1.0 GET and PUT methods with local files.
 *	Tests for the internal components.
 
 ## Building
@@ -11,9 +12,15 @@ Using the supplied Makefile should be enough to build the bin/client binary:
 
 	$ make
 
+The code has been built on the following OS/Distributions:
+
+	Ubuntu 12.04.3 LTS					amd64
+	Debian GNU/Linux 7.0 (wheezy)		amd64
+
 Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_SOURCE=200112L
 
-### Building for debugging
+
+### Build options
 
 The supplied Makefile supports some additional build configuration options for various debugging configurations.
 
@@ -53,31 +60,6 @@ user running the client.
 The code includes some simple tests for some of the functionality, mostly related to string parsing:
 
 	$ make test
-
-The code has been built on the following OS/Distributions:
-
-	Ubuntu 12.04.3 LTS					amd64
-	Debian GNU/Linux 7.0 (wheezy)		amd64
-
-### Client
-The client has been tested with the following servers:
-
-#### Apache
-
-`www.ietf.org`
-
-#### BaseHTTP/0.3 Python/2.7.3
-		
-See `doc/server.py`
-
-#### nwhttpd/0.5
-
-Serving on `nwprog1.netlab.hut.fi`
-
-#### Known limitations
-*	The client does not fully support flowed HTTP headers (it will process them as duplicate headers).
-*   The client does not support `Content-Encoding: chunked`.
-*	The client does not support HTTP/1.1 (piplining).
 
 ## Design
 
