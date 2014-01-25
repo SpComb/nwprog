@@ -3,12 +3,17 @@
 # special support for valgrind
 VALGRIND =
 
+LOCAL_INCLUDE 	= local/include
+LOCAL_LIB	= local/lib
+
+PCL_LIB		= pcl
+
 CPPDEFS = $(VALGRIND:%=VALGRIND)
 
 CFLAGS = -g -Wall
-CPPFLAGS = -Isrc -std=gnu99 $(CPPDEFS:%=-D%)
-LDFLAGS = 
-LIBS = -lpcl
+CPPFLAGS = -Isrc -std=gnu99 $(CPPDEFS:%=-D%) $(LOCAL_INCLUDE:%=-I%)
+LDFLAGS = $(LOCAL_LIB:%=-L%)
+LIBS = $(PCL_LIB:%=-l%)
 
 
 SRC_DIRS = $(filter %/,$(wildcard src/*/))
