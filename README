@@ -19,7 +19,6 @@ The code has been built on the following OS/Distributions:
 
 Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_SOURCE=200112L
 
-
 ### Build options
 
 The supplied Makefile supports some additional build configuration options for various debugging configurations.
@@ -60,50 +59,3 @@ user running the client.
 The code includes some simple tests for some of the functionality, mostly related to string parsing:
 
 	$ make test
-
-## Design
-
-The design of the code is based on splitting the logic for the various components from the generic components shared
-across all applications.
-
-#### common/http
-
-Basic HTTP protocol operations, including formatting/writing and reading/parsing protocol message lines.
-
-Operates as a line-based sender/receiver using stdio `FILE *`, with separate http_read/write() functions for handling
-request/response bodies.
-
-#### common/log
-
-Basic logging functionality.
-
-#### common/parse
-
-A simple state/character based token parser (lexer).
-
-#### common/sock
-
-Various socket-related functions.
-
-Currently mostly sockaddr-related, due to relatively simple client needs.
-
-#### common/tcp
-
-TCP connection support, including a `getaddrinfo`-based `tcp_connect()`, supporting IPv6.
-
-Currently only basic blocking sockets.
-
-#### common/url
-
-URL parsing support, parsing URL strings such as `http://host:port/path` into a `struct url`.
-
-#### common/util
-
-Miscellaenous utilities, related to strings.
-
-#### client/client
-
-HTTP client application implementation, using common/tcp and common/http for the actual network traffic, but dealing with
-local FILE I/O for GET and PUT files.
-
-
