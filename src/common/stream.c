@@ -126,7 +126,7 @@ int _stream_clear (struct stream *stream)
  *
  * This function is guaranteed to make progress.
  *
- * Returns 1 on EOF.
+ * Returns 1 on EOF. There may still be data in the buffer.
  */
 int _stream_read (struct stream *stream)
 {
@@ -140,12 +140,12 @@ int _stream_read (struct stream *stream)
         return err;
     }
 
-    if (!size) {
+	if (!size) {
         log_debug("eof");
         return 1;
     }
 
-    stream_read_mark(stream, size);
+	stream_read_mark(stream, size);
 
     return 0;
 }
@@ -277,11 +277,16 @@ int stream_read_file (struct stream *stream, int fd, size_t *sizep)
     if ((err = _stream_clear(stream)))
         return err;
 
-    // read in
-    if ((err = _stream_read(stream)))
-        return err;
-    
-    // write from writebuf
+	// read in anything available
+	if ((err = _stream_read(stream)) < 0)
+		return err;
+	
+	// detect eof
+	if (err > 0 && !stream_writebuf_size(stream)) {
+		log_debug("eof");
+		return 1;
+	}
+
     size_t size = stream_writebuf_size(stream);
 
     if (*sizep && *sizep < size)

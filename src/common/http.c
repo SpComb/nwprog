@@ -413,6 +413,7 @@ int http_read_file (struct http *http, int fd, size_t content_length)
 
         if (err) {
             // EOF
+            log_debug("eof");
             break;
         }
 		
