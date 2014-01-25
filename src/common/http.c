@@ -23,6 +23,7 @@ const char * http_status_str (enum http_status status)
 {
 	switch (status) {
 		case 200:	return "OK";
+		case 201:   return "Created";
 
 		case 301:   return "Found";
 
