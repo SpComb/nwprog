@@ -47,7 +47,7 @@ int server_request_header (struct server_client *client, const char **name, cons
  *
  * Returns 1 if there was no request body.
  */
-int server_request_file (struct server_client *client, FILE *file);
+int server_request_file (struct server_client *client, int fd);
 
 /*
  * Send response to client request.

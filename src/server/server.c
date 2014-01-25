@@ -204,7 +204,7 @@ int server_request_header (struct server_client *client, const char **namep, con
 	return 0;
 }
 
-int server_request_file (struct server_client *client, FILE *file)
+int server_request_file (struct server_client *client, int fd)
 {
 	int err;
 
@@ -214,7 +214,7 @@ int server_request_file (struct server_client *client, FILE *file)
 		return 411;
 	}
 		
-	if (((err = http_read_file(client->http, file, client->request_content_length)))){
+	if (((err = http_read_file(client->http, fd, client->request_content_length)))){
 		log_warning("http_read_file");
 		return err;
 	}
