@@ -1,6 +1,15 @@
+syntax: glob
+
 .*.swo
 .*.swp
 
+doc/*.aux
+doc/*.log
+doc/*.synctex.gz
+doc/diary.txt
+
+doc/*.pdf
+doc/*.html
+
 build/
 bin/
-doc/
