@@ -76,12 +76,12 @@ int server_static_file_get (struct server_static *s, struct server_client *clien
 	return 0;
 }
 
-int server_static_file_put (struct server_static *s, struct server_client *client, FILE *file, const struct stat *stat, const struct server_static_mimetype *mime)
+int server_static_file_put (struct server_static *s, struct server_client *client, int fd, const struct server_static_mimetype *mime)
 {
     int err;
 
     // upload
-    if ((err = server_request_file(client, file)))
+    if ((err = server_request_file(client, fd)))
         return err;
 
     // done
@@ -194,24 +194,32 @@ enum http_status server_static_error ()
 }
 
 /*
- * Lookup request target file, returning an open fd and stat.
+ * Translate request path to filesystem, returning an opened fd and stat.
  *
- * `mode` is the set of open flags to use, usually O_RDONLY, but can be used to create/write files for upload.
+ * The target may be either an existing directory, an existing file, or a new file.
+ *
+ * `create` is the set of open() O_* flags to create the target file, or zero to open an existing file/directory.
+ * Attempting to create a directory target is an error.
  */
-int server_static_lookup (struct server_static *ss, const char *path, int mode, int *fdp, struct stat *statp, const struct server_static_mimetype **mimep)
+int server_static_lookup (struct server_static *ss, const char *path, int create, int *fdp, struct stat *statp, const struct server_static_mimetype **mimep)
 {
-    const char *lookup = path;
     char name[PATH_MAX] = { 0 };
 	int dirfd = 0, filefd = 0; // assume not using stdin
     int ret = 0;
     
     // strip off the leading prefix for our handler
-    if (ss->path[strlen(ss->path) - 1] == '/') {
-        path += strlen(ss->path) - 1 - 1;
+    if (!*ss->path) {
+        // default path, no leading/trailing /
+
+    } else if (ss->path[strlen(ss->path) - 1] == '/') {
+        // skip path & trailing /
+        path += strlen(ss->path);
+
     } else {
-        path += strlen(ss->path) - 1;
+        // skip path + trailing /
+        path += strlen(ss->path) + 1;
     }
-	
+
     // start from our root directory
     if (stat(ss->root, statp)) {
         log_perror("stat %s", ss->root);
@@ -224,6 +232,8 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
         ret = server_static_error();
         goto error;
     }
+    
+    log_debug("%s %s %s", ss->root, path, create ? " (create)" : "");
     
     // parse and lookup each path component
     enum { START, EMPTY, SELF, PARENT, NAME };
@@ -243,6 +253,7 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
 
         { }
     };
+    const char *lookup = path;
     
     while (*lookup) {
         int state = START;
@@ -252,6 +263,8 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
             ret = -1;
             goto error;
         }
+
+        log_debug("%s %d %s", name, state, lookup);
         
         if (state == START || state == EMPTY || state == SELF) {
             // skip
@@ -264,14 +277,24 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
             goto error;
 
         } else {
+            bool exists;
+
             // stat for meta
-            if (fstatat(dirfd, name, statp, 0)) {
+            if (fstatat(dirfd, name, statp, 0) == 0) {
+                // success
+                exists = true;
+
+            } else if (errno == ENOENT) {
+                // not found
+                exists = false;
+
+            } else {
                 log_pwarning("fstatat %d %s", dirfd, name);
                 ret = server_static_error();
                 goto error;
             }
 
-            if ((statp->st_mode & S_IFMT) == S_IFDIR) {
+            if (exists && (statp->st_mode & S_IFMT) == S_IFDIR) {
                 int parentfd = dirfd;
 
                 // iterate into dir
@@ -286,19 +309,41 @@ int server_static_lookup (struct server_static *ss, const char *path, int mode, 
                 close(parentfd);
 
             } else {
-                // hit target file
+                int mode;
+
+                if (create && !*lookup) {
+                    // hit path terminus, create/open
+                    log_debug("%s*", name);
+                    mode = create;
+
+                } else if (exists) {
+                    // hit target file
+                    log_debug("%s?", name);
+                    mode = O_RDONLY;
+
+                } else {
+                    log_warning("%s!", path);
+                    return 404;
+                }
+
                 if ((filefd = openat(dirfd, name, mode, 0644)) < 0) {
                     log_perror("open %s", path);
                     ret = server_static_error();
                     goto error;
                 }
-                
-                log_debug("%s", name);
+
+                // stat after creation
+                if (!exists && fstat(filefd, statp)) {
+                    log_perror("fstat %d", filefd);
+                    ret = server_static_error();
+                    goto error;
+                }
 
                 break;
             }
         }
     }
+
 
     if (filefd) {
         // figure out mimetype from filename
@@ -343,7 +388,7 @@ int server_static_request (struct server_handler *handler, struct server_client 
 	int fd = -1;
 	struct stat stat;
 	int ret = 0;
-    int open_mode;
+    int create;
 
 	// see if there are any interesting request headers
 	const char *header, *value;
@@ -357,52 +402,36 @@ int server_static_request (struct server_handler *handler, struct server_client 
 
     // lookup
     if (strcasecmp(method, "GET") == 0 && (ss->flags & SERVER_STATIC_GET)) {
-        open_mode = O_RDONLY;
+        create = 0;
 
     } else if (strcasecmp(method, "PUT") == 0 && (ss->flags & SERVER_STATIC_PUT)) {
-        open_mode = O_WRONLY | O_CREAT | O_TRUNC;
+        create = O_WRONLY | O_CREAT | O_TRUNC;
 
     } else {
         log_warning("unknown method: %s %s", method, url->path);
         return 400;
     }
 
-    if ((ret = server_static_lookup(ss, url->path, open_mode, &fd, &stat, &mime))) {
+    if ((ret = server_static_lookup(ss, url->path, create, &fd, &stat, &mime))) {
         return ret;
     }
 
 	log_info("%s %s %s %s", ss->root, method, url->path, mime ? mime->content_type : "(unknown mimetype)");
 	
 	// check
-	if ((stat.st_mode & S_IFMT) == S_IFREG) {
-        
-        if ((open_mode == O_RDONLY)) {
-            ret = server_static_file_get(ss, client, fd, &stat, mime);
+	if ((stat.st_mode & S_IFMT) == S_IFREG && create) {
+        // put new file
+        ret = server_static_file_put(ss, client, fd, mime);
 
-        } else {
-            FILE *file;
-
-            // upload
-            if (!(file = fdopen(fd, "w"))) {
-                log_pwarning("fdopen");
-                ret = -1;
-                goto error;
-            } else {
-                fd = -1;
-            }
-
-            ret = server_static_file_put(ss, client, file, &stat, mime);
-
-            if (fclose(file)) {
-                log_pwarning("fclose");
-            }
-        }
+    } else if ((stat.st_mode & S_IFMT) == S_IFREG) {
+        // get existing file
+        ret = server_static_file_get(ss, client, fd, &stat, mime);
 	
 	} else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
 		DIR *dir;
         
-		if (!(open_mode == O_RDONLY)) {
-			log_warning("put to directory: %s", path);
+		if (create) {
+			log_warning("cannot create directory: %s", url->path);
 			return 405;
 		}
 
