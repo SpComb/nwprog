@@ -77,7 +77,7 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 	}
 	
 	if (client_open(client, &urlbuf.url)) {
-		log_fatal("failed to open url");
+		log_fatal("failed to open url: %s", arg);
 		ret = 3;
 		goto error;
 	}
