@@ -8,12 +8,14 @@ LOCAL_LIB	= local/lib
 
 PCL_LIB		= pcl
 
+SSL_LIB     = ssl
+
 CPPDEFS = $(VALGRIND:%=VALGRIND)
 
 CFLAGS = -g -Wall
 CPPFLAGS = -Isrc -std=gnu99 $(CPPDEFS:%=-D%) $(LOCAL_INCLUDE:%=-I%)
 LDFLAGS = $(LOCAL_LIB:%=-L%)
-LIBS = $(PCL_LIB:%=-l%)
+LIBS = $(PCL_LIB:%=-l%) $(SSL_LIB:%=-l%)
 
 
 SRC_DIRS = $(filter %/,$(wildcard src/*/))
@@ -31,6 +33,7 @@ test: bin/test-url bin/test-http
 
 bin/client: build/src/client.o \
 	build/src/client/client.o \
+    build/src/common/ssl.o \
 	build/src/common/tcp.o build/src/common/tcp_client.o \
 	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \

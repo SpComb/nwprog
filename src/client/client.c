@@ -7,15 +7,21 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <sys/queue.h>
 
 struct client {
-    struct tcp *tcp;
-	struct http *http;
-
 	/* Settings */
+    struct ssl_main *ssl_main;
 	FILE *response_file;
+
+    /* Transport; either-or */
+    struct tcp *tcp;
+    struct ssl *ssl;
+
+    /* Protocol */
+	struct http *http;
 
     /* Headers */
     TAILQ_HEAD(client_headers, client_header) headers;
@@ -71,6 +77,13 @@ int client_create (struct client **clientp)
 	return 0;
 }
 
+int client_set_ssl (struct client *client, struct ssl_main *ssl_main)
+{
+    client->ssl_main = ssl_main;
+
+    return 0;
+}
+
 int client_set_response_file (struct client *client, FILE *file)
 {
 	if (client->response_file && fclose(client->response_file))
@@ -98,7 +111,7 @@ int client_add_header (struct client *client, const char *name, const char *valu
     return 0;
 }
 
-int client_open (struct client *client, const struct url *url)
+int client_open_http (struct client *client, const struct url *url)
 {
 	int err;
 	const char *port = "http";
@@ -115,8 +128,48 @@ int client_open (struct client *client, const struct url *url)
 	// http
 	if ((err = http_create(&client->http, tcp_read_stream(client->tcp), tcp_write_stream(client->tcp))))
 		return err;
+    
+	return 0;
+}
+
+int client_open_https (struct client *client, const struct url *url)
+{
+	int err;
+	const char *port = "https";
+
+    if (!client->ssl_main) {
+        log_error("no client ssl support; use client_set_ssl()");
+        return 1;
+    }
+
+	// connect
+	if (url->port)
+		port = url->port;
+	
+    if ((err = ssl_client(client->ssl_main, &client->ssl, url->host, port))) {
+        log_error("ssl_client");
+        return err;
+    }
+
+	// http
+	if ((err = http_create(&client->http, ssl_read_stream(client->ssl), ssl_write_stream(client->ssl))))
+		return err;
 
 	return 0;
+}
+
+int client_open (struct client *client, const struct url *url)
+{
+    if (!url->scheme || !*url->scheme || strcmp(url->scheme, "http") == 0) {
+        return client_open_http(client, url);
+        
+    } else if (strcmp(url->scheme, "https") == 0) {
+        return client_open_https(client, url);
+
+    } else {
+        log_error("unknown url scheme: %s", url->scheme);
+        return 1;
+    }
 }
 
 // XXX: this function exists only for the logging prefix atm
@@ -220,7 +273,7 @@ static int client_request (struct client *client, struct client_request *request
 	int err;
 
 	// request
-	log_info("%s http://%s/%s", request->method, tcp_peer_str(client->tcp), request->url->path);
+	log_info("%s %s", request->method, request->url->path);
 
 	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");

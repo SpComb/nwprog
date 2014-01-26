@@ -7,6 +7,15 @@
 #include <stdio.h>
 #include <unistd.h>
 
+struct options {
+	const char *get;
+	const char *put;
+    const char *iam;
+    
+    /* Apply */
+    struct ssl_main *ssl_main;
+};
+
 static const struct option main_options[] = {
 	{ "help",		0, 	NULL,		'h' },
 	{ "quiet",		0, 	NULL,		'q' },
@@ -39,7 +48,7 @@ void help (const char *argv0) {
 	, argv0, argv0, argv0, argv0);
 }
 
-int client (const char *arg, const char *get, const char *put, const char *iam) {
+int client (const struct options *options, const char *arg) {
 	struct urlbuf urlbuf;
 	struct client *client = NULL;
 	FILE *get_file = stdout, *put_file = NULL;
@@ -56,15 +65,15 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 		urlbuf.url.path = "";
 	}
 
-	if (get && !(get_file = fopen(get, "w"))) {
-		log_error("fopen %s", get);
+	if (options->get && !(get_file = fopen(options->get, "w"))) {
+		log_error("fopen %s", options->get);
 		log_fatal("failed to open --get file for writing");
 		ret = 1;
 		goto error;
 	}
 
-	if (put && !(put_file = fopen(put, "r"))) {
-		log_error("fopen %s", put);
+	if (options->put && !(put_file = fopen(options->put, "r"))) {
+		log_error("fopen %s", options->put);
 		log_fatal("failed to open --put file for reading");
 		ret = 1;
 		goto error;
@@ -75,6 +84,12 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 		ret = 2;
 		goto error;
 	}
+
+    if (client_set_ssl(client, options->ssl_main)) {
+        log_fatal("failed to initialize client ssl");
+        ret = 2;
+        goto error;
+    }
 	
 	if (client_open(client, &urlbuf.url)) {
 		log_fatal("failed to open url: %s", arg);
@@ -88,7 +103,7 @@ int client (const char *arg, const char *get, const char *put, const char *iam) 
 		goto error;
 	}
 
-	if (iam && client_add_header(client, "Iam", iam)) {
+	if (options->iam && client_add_header(client, "Iam", options->iam)) {
 		log_fatal("failed to set client Iam header");
 		ret = 2;
 		goto error;
@@ -121,8 +136,12 @@ int main (int argc, char **argv)
 	int opt, longopt;
 	enum log_level log_level = LOG_LEVEL;
 	int err = 0;
-	const char *put = NULL, *get = NULL;
-    const char *iam = getlogin();
+
+    struct options options = {
+        .get    = NULL,
+        .put    = NULL,
+        .iam    = getlogin(),
+    };
 
 	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:", main_options, &longopt)) >= 0) {
 		switch (opt) {
@@ -143,15 +162,15 @@ int main (int argc, char **argv)
 				break;
 			
 			case 'G':
-				get	= optarg;
+				options.get	= optarg;
 				break;
 
 			case 'P':
-				put = optarg;
+				options.put = optarg;
 				break;
             
             case 'I':
-                iam = optarg;
+                options.iam = optarg;
                 break;
 
 			default:
@@ -163,8 +182,13 @@ int main (int argc, char **argv)
 	// apply
 	log_set_level(log_level);
 
+    if ((err = ssl_main_create(&options.ssl_main))) {
+        log_fatal("ssl_main_create");
+        return 1;
+    }
+
 	while (optind < argc && !err) {
-		err = client(argv[optind++], get, put, iam);
+		err = client(&options, argv[optind++]);
 	}
 	
 	return err;
