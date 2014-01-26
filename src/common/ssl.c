@@ -65,9 +65,19 @@ error:
 int ssl_stream_read (char *buf, size_t *sizep, void *ctx)
 {
     struct ssl *ssl = ctx;
-    int err;
+    int ret;
+    
+    if ((ret = SSL_read(ssl->SSL, buf, *sizep)) < 0) {
+        log_error("SSL_read: XXX");
+        return -1;
+    }
 
-    *sizep = 0;
+    if (!ret) {
+        log_debug("eof: XXX");
+        return 1;
+    }
+
+    *sizep = ret;
 
     return 0;
 }
@@ -75,9 +85,19 @@ int ssl_stream_read (char *buf, size_t *sizep, void *ctx)
 int ssl_stream_write (const char *buf, size_t *sizep, void *ctx)
 {
     struct ssl *ssl = ctx;
-    int err;
+    int ret;
+    
+    if ((ret = SSL_write(ssl->SSL, buf, *sizep)) < 0) {
+        log_error("SSL_write: XXX");
+        return -1;
+    }
 
-    *sizep = 0;
+    if (!ret) {
+        log_debug("eof: XXX");
+        return 1;
+    }
+
+    *sizep = ret;
 
     return 0;
 }
