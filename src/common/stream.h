@@ -35,8 +35,12 @@ struct stream {
     void *ctx;
 };
 
+/*
+ * Construct a new stream, using the given implementation.
+ *
+ * `size` determines the fixed buffer allocated for the stream, which determines the maximum read/write size.
+ */
 int stream_create (const struct stream_type *type, struct stream **streamp, size_t size, void *ctx);
-int stream_init (const struct stream_type *type, struct stream *stream, size_t size, void *ctx);
 
 /*
  * Read binary data from the stream.
