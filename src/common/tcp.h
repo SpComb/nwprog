@@ -54,12 +54,10 @@ int tcp_client (struct tcp **tcpp, const char *host, const char *port);
 /*
  * TCP connection interface.
  */ 
+int tcp_sock (struct tcp *tcp);
 struct stream * tcp_read_stream (struct tcp *tcp);
 struct stream * tcp_write_stream (struct tcp *tcp);
 
-const char * tcp_sock_str (struct tcp *tcp);
-const char * tcp_peer_str (struct tcp *tcp);
-    
 void tcp_destroy (struct tcp *tcp);
 
 #endif

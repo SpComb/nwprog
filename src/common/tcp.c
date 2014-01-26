@@ -7,11 +7,6 @@
 
 #include <unistd.h>
 
-void tcp_event (struct event *event, int flags, void *ctx)
-{
-	log_info("flags=%#02x", flags);
-}
-
 int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
 {
     struct tcp *tcp = ctx;
@@ -140,6 +135,11 @@ error:
 	return -1;
 }
 
+int tcp_sock (struct tcp *tcp)
+{
+    return tcp->sock;
+}
+
 struct stream * tcp_read_stream (struct tcp *tcp)
 {
     return tcp->read;
@@ -148,16 +148,6 @@ struct stream * tcp_read_stream (struct tcp *tcp)
 struct stream * tcp_write_stream (struct tcp *tcp)
 {
     return tcp->write;
-}
-
-const char * tcp_sock_str (struct tcp *tcp)
-{
-	return sockname_str(tcp->sock);
-}
-
-const char * tcp_peer_str (struct tcp *tcp)
-{
-	return sockpeer_str(tcp->sock);
 }
 
 void tcp_destroy (struct tcp *tcp)
