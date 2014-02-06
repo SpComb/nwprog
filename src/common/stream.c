@@ -48,6 +48,23 @@ static inline char * stream_writebuf_end (struct stream *stream)
     return stream->buf + stream->length;
 }
 
+static int stream_init (const struct stream_type *type, struct stream *stream, size_t size, void *ctx)
+{
+    // buffer
+    if (!(stream->buf = malloc(size))) {
+        log_perror("malloc %zu", size);
+        return -1;
+    }
+
+    stream->type = type;
+    stream->size = size;
+    stream->length = 0;
+    stream->offset = 0;
+    stream->ctx = ctx;
+
+    return 0;
+}
+
 int stream_create (const struct stream_type *type, struct stream **streamp, size_t size, void *ctx)
 {
     struct stream *stream;
@@ -66,23 +83,6 @@ int stream_create (const struct stream_type *type, struct stream **streamp, size
 error:
     free(stream);
     return -1;
-}
-
-int stream_init (const struct stream_type *type, struct stream *stream, size_t size, void *ctx)
-{
-    // buffer
-    if (!(stream->buf = malloc(size))) {
-        log_perror("malloc %zu", size);
-        return -1;
-    }
-    
-    stream->type = type;
-    stream->size = size;
-    stream->length = 0;
-    stream->offset = 0;
-    stream->ctx = ctx;
-
-    return 0;
 }
 
 /*
