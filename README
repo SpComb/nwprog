@@ -8,6 +8,10 @@ This coursework project consists of several parts:
 
 ## Building
 
+Building utilizes the following dependencies (Debian package names given):
+
+* `libpcl1-dev`
+
 Using the supplied Makefile should be enough to build the bin/client binary:
 
 	$ make
@@ -27,9 +31,11 @@ The supplied Makefile supports some additional build configuration options for v
 
 The client optionally supports *https://* URLs using OpenSSL.
 
-The libssl-dev headers must be available.
-
     $ make -B SSL=1
+
+The libssl-dev headers must be available:
+
+* `libssl-dev`
 
 ### Valgrind
 
@@ -37,6 +43,10 @@ Due to the use of multiple stacks, running the server under valgrind will report
 with the use of special valgrind-specific instrumentation to register the separate stack frames:
 
     $ make -B VALGRIND=1
+
+The valgrind headers are included in the valgrind package:
+
+* `valgrind`
 
 ## Client
 
