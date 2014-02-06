@@ -60,7 +60,7 @@ user running the client.
 
 	$ ./bin/client -q http://www.ietf.org/rfc/rfc2616.txt
 	$ ./bin/client -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt
-	$ ./bin/client -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt
+	$ ./bin/client -P rfc2616.txt http://nwprog1.netlab.hut.fi:1340/upload/rfc2616.txt
 
 ## Testing
 
