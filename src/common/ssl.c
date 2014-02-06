@@ -8,6 +8,10 @@
 #include <openssl/ssl.h>
 #include <unistd.h>
 
+#ifndef WITH_SSL
+#error XXX: building common/ssl.o without WITH_SSL
+#endif
+
 struct ssl_main {
     SSL_CTX *ssl_ctx;
 };

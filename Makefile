@@ -1,16 +1,20 @@
 # vim : set noexpandtab :
 
-# special support for valgrind
+# configuration
 VALGRIND =
+SSL =
 
 LOCAL_INCLUDE 	= local/include
 LOCAL_LIB	= local/lib
 
+# PCL
 PCL_LIB		= pcl
 
-SSL_LIB     = ssl
+# SSL
+SSL_LIB     = $(SSL:%=ssl)
 
-CPPDEFS = $(VALGRIND:%=VALGRIND)
+# ifdefs for code
+CPPDEFS = $(VALGRIND:%=VALGRIND) $(SSL:%=WITH_SSL)
 
 CFLAGS = -g -Wall
 CPPFLAGS = -Isrc -std=gnu99 $(CPPDEFS:%=-D%) $(LOCAL_INCLUDE:%=-I%)
@@ -25,6 +29,8 @@ OBJ_COMMON = $(SRC_COMMON:%.c=build/%.o)
 TEST_DIRS = $(filter %/,$(wildcard test/*/))
 TEST_SRCS = $(wildcard test/*/*.c)
 
+BUILD_SSL = $(SSL:%=build/src/common/ssl.o)
+
 all: build bin/client bin/server
 
 test: bin/test-url bin/test-http
@@ -33,7 +39,7 @@ test: bin/test-url bin/test-http
 
 bin/client: build/src/client.o \
 	build/src/client/client.o \
-    build/src/common/ssl.o \
+    $(BUILD_SSL) \
 	build/src/common/tcp.o build/src/common/tcp_client.o \
 	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \

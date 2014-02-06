@@ -13,12 +13,16 @@
 
 struct client {
 	/* Settings */
+#ifdef WITH_SSL
     struct ssl_main *ssl_main;
+#endif
 	FILE *response_file;
 
     /* Transport; either-or */
     struct tcp *tcp;
+#ifdef WITH_SSL
     struct ssl *ssl;
+#endif
 
     /* Protocol */
 	struct http *http;
@@ -76,14 +80,14 @@ int client_create (struct client **clientp)
 
 	return 0;
 }
-
+#ifdef WITH_SSL
 int client_set_ssl (struct client *client, struct ssl_main *ssl_main)
 {
     client->ssl_main = ssl_main;
 
     return 0;
 }
-
+#endif
 int client_set_response_file (struct client *client, FILE *file)
 {
 	if (client->response_file && fclose(client->response_file))
@@ -132,6 +136,7 @@ int client_open_http (struct client *client, const struct url *url)
 	return 0;
 }
 
+#ifdef WITH_SSL
 int client_open_https (struct client *client, const struct url *url)
 {
 	int err;
@@ -157,6 +162,7 @@ int client_open_https (struct client *client, const struct url *url)
 
 	return 0;
 }
+#endif
 
 int client_open (struct client *client, const struct url *url)
 {
@@ -164,8 +170,12 @@ int client_open (struct client *client, const struct url *url)
         return client_open_http(client, url);
         
     } else if (strcmp(url->scheme, "https") == 0) {
+#ifdef WITH_SSL
         return client_open_https(client, url);
-
+#else
+        log_error("unsupported url scheme: %s", url->scheme);
+        return 1;
+#endif
     } else {
         log_error("unknown url scheme: %s", url->scheme);
         return 1;

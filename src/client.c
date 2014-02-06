@@ -13,7 +13,9 @@ struct options {
     const char *iam;
     
     /* Apply */
+#ifdef WITH_SSL
     struct ssl_main *ssl_main;
+#endif
 };
 
 static const struct option main_options[] = {
@@ -84,13 +86,13 @@ int client (const struct options *options, const char *arg) {
 		ret = 2;
 		goto error;
 	}
-
+#ifdef WITH_SSL
     if (client_set_ssl(client, options->ssl_main)) {
         log_fatal("failed to initialize client ssl");
         ret = 2;
         goto error;
     }
-	
+#endif
 	if (client_open(client, &urlbuf.url)) {
 		log_fatal("failed to open url: %s", arg);
 		ret = 3;
@@ -181,12 +183,12 @@ int main (int argc, char **argv)
 
 	// apply
 	log_set_level(log_level);
-
+#ifdef WITH_SSL
     if ((err = ssl_main_create(&options.ssl_main))) {
         log_fatal("ssl_main_create");
         return 1;
     }
-
+#endif
 	while (optind < argc && !err) {
 		err = client(&options, argv[optind++]);
 	}

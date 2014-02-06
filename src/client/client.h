@@ -1,8 +1,11 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "common/ssl.h"
 #include "common/url.h"
+
+#ifdef WITH_SSL
+#   include "common/ssl.h"
+#endif
 
 /*
  * HTTP Client.
@@ -14,10 +17,12 @@ struct client;
  */
 int client_create (struct client **clientp);
 
+#ifdef WITH_SSL
 /*
  * Set SSL context for https support.
  */
 int client_set_ssl (struct client *client, struct ssl_main *ssl_main);
+#endif
 
 /*
  * Write response data to FILE, or NULL to bitbucket.

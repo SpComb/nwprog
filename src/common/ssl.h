@@ -1,3 +1,7 @@
+#ifndef WITH_SSL
+#error building without SSL support
+#endif
+
 #ifndef SSL_H
 #define SSL_H
 
