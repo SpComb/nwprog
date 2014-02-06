@@ -112,19 +112,35 @@ int client (const struct options *options, const char *arg) {
 	}
 	
 	if (put_file) {
-		if (client_put(client, &urlbuf.url, put_file)) {
+		if ((ret = client_put(client, &urlbuf.url, put_file) < 0)) {
 			log_fatal("PUT failed: %s", arg);
 			ret = 4;
 			goto error;
 		}
 
 	} else {
-		if (client_get(client, &urlbuf.url)) {
+		if ((ret = client_get(client, &urlbuf.url)) < 0) {
 			log_fatal("GET failed: %s", arg);
 			ret = 4;
 			goto error;
 		}
 	}
+
+    if (ret >= 200 && ret < 300) {
+        log_debug("Server returned 2xx response: %d", ret);
+
+    } else if (ret >= 300 && ret < 400) {
+        log_info("Server returned 3xx response: %d", ret);
+
+    } else if (ret >= 400 && ret < 500) {
+        log_error("Server returned 4xx response: %d", ret);
+
+    } else if (ret >= 500 && ret < 600) {
+        log_warning("Server returned 5xx response: %d", ret);
+
+    } else {
+        log_warning("Server returned unknown response type: %d", ret);
+    }
 
 error:
 	if (client)

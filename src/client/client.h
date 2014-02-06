@@ -43,11 +43,15 @@ int client_open (struct client *client, const struct url *url);
 
 /*
  * Perform a GET request for the given URL /path.
+ *
+ * Returns HTTP response status, or <0 on error.
  */
 int client_get (struct client *client, const struct url *url);
 
 /*
- * Perform a PUTT request for the given file and URL /path.
+ * Perform a PUT request for the given file and URL /path.
+ *
+ * Returns HTTP response status, or <0 on error.
  */
 int client_put (struct client *client, const struct url *url, FILE *file);
 

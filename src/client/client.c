@@ -394,7 +394,7 @@ int client_get (struct client *client, const struct url *url)
 	if ((err = client_request(client, &request, &response)) < 0)
 		return err;
 
-	return 0;
+    return response.status;
 }
 
 int client_put (struct client *client, const struct url *url, FILE *file)
@@ -435,7 +435,7 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 	if ((err = client_request(client, &request, &response)) < 0)
 		return err;
 
-	return 0;
+    return response.status;
 }
 
 void client_destroy (struct client *client)
