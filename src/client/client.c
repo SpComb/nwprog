@@ -298,22 +298,22 @@ static int client_request (struct client *client, struct client_request *request
 
         if (err) {
             log_error("error sending request line");
-            return err;
+            return -1;
         }
 
         if ((err = client_request_headers(client, request))) {
             log_error("error sending request headers");
-            return err;
+            return -1;
         }
 
         if ((err = http_write_headers(client->http))) {
             log_error("error sending request end-of-headers");
-            return err;
+            return -1;
         }
 
         if ((err = client_request_file(client, request))) {
             log_error("error sending request file");
-            return err;
+            return -1;
         }
     }
 
@@ -325,7 +325,7 @@ static int client_request (struct client *client, struct client_request *request
 
 		if ((err = http_read_response(client->http, &version, &response->status, &reason))) {
 			log_error("error reading response line");
-			return err;
+			return -1;
 		}
 		
 		log_info("%u %s", response->status, reason);
@@ -338,12 +338,12 @@ static int client_request (struct client *client, struct client_request *request
 		// *header is preserved for folded header lines... so they appear as duplicate headers
 		while (!(err = http_read_header(client->http, &header, &value))) {
 			if ((err = client_response_header(client, response, header, value)))
-				return err;
+				return -1;
 		}
 
 		if (err < 0) {
 			log_error("error reading response headers");
-			return err;
+			return -1;
 		}
 	}
 
@@ -406,7 +406,7 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 
 	if (fseek(file, 0, SEEK_END)) {
 		log_perror("given PUT file is not seekable");
-		return 1;
+		return -1;
 	}
 
 	if ((content_length = ftell(file)) < 0) {
