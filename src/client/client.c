@@ -59,6 +59,7 @@ struct client_response {
 	unsigned status;
 
 	/* Headers */
+    bool content_length_zero;
 	size_t content_length;
 
 	/* Write response content to FILE */
@@ -244,6 +245,9 @@ int client_response_header (struct client *client, struct client_response *respo
 		}
 
 		log_debug("content_length=%zu", response->content_length);
+
+        if (!response->content_length)
+            response->content_length_zero = true;
 	}
 
 	return 0;
@@ -365,11 +369,18 @@ static int client_request (struct client *client, struct client_request *request
 		// more requests
 		err = 0;
 
-	} else {
+	} else if (response->content_length_zero) {
+        log_debug("explicit zero-length response body");
+
+        // more requests
+        err = 0;
+
+    } else {
+		// to EOF
         if ((err = client_response_file(client, response)))
             return err;
 
-		// to end of connection
+        // no more requests
 		err = 1;
 	}
 	
