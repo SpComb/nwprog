@@ -273,19 +273,22 @@ int stream_read_file (struct stream *stream, int fd, size_t *sizep)
     int err;
     ssize_t ret;
 
-    // make room if needed
-    if ((err = _stream_clear(stream)))
-        return err;
+    // read() more if buffer empty; we should not block on read() while we still have data to process
+    if (!stream_writebuf_size(stream)) {
+        // make room if needed
+        if ((err = _stream_clear(stream)))
+            return err;
 
-	// read in anything available
-	if ((err = _stream_read(stream)) < 0)
-		return err;
-	
-	// detect eof
-	if (err > 0 && !stream_writebuf_size(stream)) {
-		log_debug("eof");
-		return 1;
-	}
+        // read in anything available
+        if ((err = _stream_read(stream)) < 0)
+            return err;
+
+        // detect eof
+        if (err > 0 && !stream_writebuf_size(stream)) {
+            log_debug("eof");
+            return 1;
+        }
+    }
 
     size_t size = stream_writebuf_size(stream);
 
