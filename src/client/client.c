@@ -281,28 +281,40 @@ int client_response_file (struct client *client, struct client_response *respons
 static int client_request (struct client *client, struct client_request *request, struct client_response *response)
 {
 	int err;
-
-	// request
-	log_info("%s /%s", request->method, request->url->path);
-
-	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
-		log_error("error sending request line");
-		return err;
-	}
-
-	if ((err = client_request_headers(client, request))) {
-		log_error("error sending request headers");
-		return err;
-	}
-
-	if ((err = http_write_headers(client->http))) {
-		log_error("error sending request end-of-headers");
-		return err;
-	}
     
-    if ((err = client_request_file(client, request))) {
-        log_error("error sending request file");
-        return err;
+    // request
+    {
+        // url parses these parts separately, so we must handle them separately..
+        if (request->url->query && *request->url->query) {
+            log_info("%s /%s?%s", request->method, request->url->path, request->url->query);
+
+            err = http_write_request(client->http, request->method, "/%s?%s", request->url->path, request->url->query);
+
+        } else {
+            log_info("%s /%s", request->method, request->url->path);
+
+            err = http_write_request(client->http, request->method, "/%s", request->url->path);
+        }
+
+        if (err) {
+            log_error("error sending request line");
+            return err;
+        }
+
+        if ((err = client_request_headers(client, request))) {
+            log_error("error sending request headers");
+            return err;
+        }
+
+        if ((err = http_write_headers(client->http))) {
+            log_error("error sending request end-of-headers");
+            return err;
+        }
+
+        if ((err = client_request_file(client, request))) {
+            log_error("error sending request file");
+            return err;
+        }
     }
 
 	log_debug("end-of-request");
