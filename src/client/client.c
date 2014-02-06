@@ -283,7 +283,7 @@ static int client_request (struct client *client, struct client_request *request
 	int err;
 
 	// request
-	log_info("%s %s", request->method, request->url->path);
+	log_info("%s /%s", request->method, request->url->path);
 
 	if ((err = http_write_request(client->http, request->method, "/%s", request->url->path))) {
 		log_error("error sending request line");
