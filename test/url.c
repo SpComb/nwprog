@@ -34,7 +34,7 @@ struct test_url {
 };
 
 const char *error_tests[] = {
-    "scheme:host",
+    // XXX: no more invalid parses?
     NULL
 };
 
