@@ -112,7 +112,7 @@ int client (const struct options *options, const char *arg) {
 	}
 	
 	if (put_file) {
-		if ((ret = client_put(client, &urlbuf.url, put_file) < 0)) {
+		if ((ret = client_put(client, &urlbuf.url, put_file)) < 0) {
 			log_fatal("PUT failed: %s", arg);
 			ret = 4;
 			goto error;
