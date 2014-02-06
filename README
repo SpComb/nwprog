@@ -19,11 +19,19 @@ The code has been built on the following OS/Distributions:
 
 Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_SOURCE=200112L
 
-### Build options
+## Build options
 
 The supplied Makefile supports some additional build configuration options for various debugging configurations.
 
-#### Valgrind
+### SSL
+
+The client optionally supports *https://* URLs using OpenSSL.
+
+The libssl-dev headers must be available.
+
+    $ make -B SSL=1
+
+### Valgrind
 
 Due to the use of multiple stacks, running the server under valgrind will report spurious errors. This can be avoided
 with the use of special valgrind-specific instrumentation to register the separate stack frames:
