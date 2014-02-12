@@ -23,6 +23,7 @@ struct event {
     
     int fd;
     int flags;
+    struct timeval timeout;
 
     struct event_task *task;
 
@@ -156,7 +157,7 @@ error:
     return -1;
 }
 
-int event_yield (struct event *event, int flags)
+int event_yield (struct event *event, int flags, const struct timeval *timeout)
 {
     struct event_task *task = event->event_main->task;
 
@@ -167,13 +168,36 @@ int event_yield (struct event *event, int flags)
     event->task = task;
     event->flags = flags;
 
-    log_debug("<- %s:%d", task->name, event->fd);
+    if (timeout) {
+        event->flags |= EVENT_TIMEOUT;
+
+        // set timeout in future
+        if (gettimeofday(&event->timeout, NULL)) {
+            log_perror("gettimeofday");
+            return -1;
+        }
+        
+        event->timeout.tv_sec += timeout->tv_sec;
+        event->timeout.tv_usec += timeout->tv_usec;
+    }
+
+    log_debug("<- %s:%d (%x)", task->name, event->fd, event->flags);
 
     co_resume();
 
-    log_debug("-> %s:%d", task->name, event->fd);
-     
-    return 0;
+    log_debug("-> %s:%d (%x)", task->name, event->fd, event->flags);
+    
+    // read event state
+    flags = event->flags;
+    
+    // clear yield state
+    event->flags = 0;
+    event->task = NULL;
+
+    if (flags & EVENT_TIMEOUT)
+        return 1;
+    else 
+        return 0;
 }
 
 void event_destroy (struct event *event)
@@ -190,6 +214,8 @@ int event_main_run (struct event_main *event_main)
     while (true) {
         int nfds = 0, ret;
         struct event *event;
+        struct timeval event_timeout = { 0, 0 };
+        struct event *timeout_event = NULL;
 
         FD_ZERO(&read);
         FD_ZERO(&write);
@@ -201,6 +227,16 @@ int event_main_run (struct event_main *event_main)
             if (event->flags & EVENT_WRITE)
                 FD_SET(event->fd, &write);
 
+            if (event->flags & EVENT_TIMEOUT) {
+                if (!event_timeout.tv_sec || event->timeout.tv_sec < event_timeout.tv_sec || (   
+                        event->timeout.tv_sec == event_timeout.tv_sec 
+                    &&  event->timeout.tv_usec < event_timeout.tv_usec
+                )) {
+                    event_timeout = event->timeout;
+                    timeout_event = event;
+                }
+            }
+
             if (event->fd >= nfds)
                 nfds = event->fd + 1;
         }
@@ -209,35 +245,79 @@ int event_main_run (struct event_main *event_main)
             log_info("nothing to do");
             return 0;
         }
+
+        // select, with timeout?
+        if (timeout_event) {
+            struct timeval select_timeout;
+
+            if (gettimeofday(&select_timeout, NULL)) {
+                log_perror("gettimeofday");
+                return -1;
+            }
+            
+            if (event_timeout.tv_sec >= select_timeout.tv_sec && event_timeout.tv_usec >= select_timeout.tv_usec) {
+                select_timeout.tv_sec = event_timeout.tv_sec - select_timeout.tv_sec;
+                select_timeout.tv_usec = event_timeout.tv_usec - select_timeout.tv_usec;
+
+            } else if (event_timeout.tv_sec > select_timeout.tv_sec && event_timeout.tv_usec < select_timeout.tv_usec) {
+                select_timeout.tv_sec = event_timeout.tv_sec - select_timeout.tv_sec - 1;
+                select_timeout.tv_usec = 1000000 + event_timeout.tv_usec - select_timeout.tv_usec;
+
+            } else {
+                log_warning("timeout in future: %ld:%ld", event_timeout.tv_sec, event_timeout.tv_usec);
+                select_timeout.tv_sec = 0;
+                select_timeout.tv_usec = 0;
+            }
+
+            log_debug("select: %d timeout=%ld:%ld", nfds, select_timeout.tv_sec, select_timeout.tv_usec);
+            
+            ret = select(nfds, &read, &write, NULL, &select_timeout);
+
+        } else {
+            log_debug("select: %d", nfds);
+
+            ret = select(nfds, &read, &write, NULL, NULL);
+        }
         
-        // TODO: timeout
-        if ((ret = select(nfds, &read, &write, NULL, NULL)) < 0) {
+        if (ret < 0) {
             log_perror("select");
             return -1; 
         }
-
-        // event_destroy -safe loop...
-        struct event *event_next;
-
-        for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
-            event_next = TAILQ_NEXT(event, event_main_events);
-
-            int flags = 0;
-
-            if (FD_ISSET(event->fd, &read))
-                flags |= EVENT_READ;
-            
-            if (FD_ISSET(event->fd, &write))
-                flags |= EVENT_WRITE;
-
-            if (flags) {
-                struct event_task *task = event->task;
-
-                event->flags = 0;
-                event->task = NULL;
+        
+        if (!ret) {
+            // timed out
+            if (!timeout_event) {
+                log_error("select timeout without event?!");
+            } else {
+                // notify
+                timeout_event->flags = EVENT_TIMEOUT;
                 
-                // this may event_destroy(event)
-                event_switch(event_main, task);
+                // NOTE: this may event_destroy(event)
+                event_switch(event_main, timeout_event->task);
+            }
+        } else {
+            // event_destroy -safe loop...
+            struct event *event_next;
+
+            for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
+                event_next = TAILQ_NEXT(event, event_main_events);
+
+                int flags = 0;
+
+                if (FD_ISSET(event->fd, &read))
+                    flags |= EVENT_READ;
+                
+                if (FD_ISSET(event->fd, &write))
+                    flags |= EVENT_WRITE;
+
+                if (flags) {
+                    struct event_task *task = event->task;
+
+                    event->flags = flags;
+                    
+                    // this may event_destroy(event)
+                    event_switch(event_main, task);
+                }
             }
         }
     }

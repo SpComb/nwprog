@@ -1,9 +1,13 @@
 #ifndef EVENT_H
 #define EVENT_H
 
+#include <sys/time.h>
+
 enum event_flag {
-    EVENT_READ  = 0x01,
-    EVENT_WRITE = 0x02,
+    EVENT_READ      = 0x01,
+    EVENT_WRITE     = 0x02,
+
+    EVENT_TIMEOUT   = 0x08,
 };
 
 /*
@@ -44,8 +48,13 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
 
 /*
  * Yield execution on the given event.
+ *
+ *  flags:          some combination of EVENT_READ|EVENT_WRITE.
+ *  timeout:        relative timeout until returning 1 for timeout.
+ *
+ * Returns 0 on success (event happaned), 1 on timeout (event did not happen), <0 on error.
  */
-int event_yield (struct event *event, int flags);
+int event_yield (struct event *event, int flags, const struct timeval *timeout);
    
 /*
  * Deactivate and release resources.
