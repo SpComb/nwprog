@@ -88,7 +88,7 @@ build/%.o: %.c
 	$(CC) -MM $(CPPFLAGS) $*.c -MT build/$*.o -MF build/$*.d
 
 # existing .d files for rebuilding existing .o's
--include $(wildcard build/*/*.d)
+-include $(wildcard build/*/*.d build/*/*/*.d)
 
 clean:
 	rm -rf core build/*/*/* bin/*
