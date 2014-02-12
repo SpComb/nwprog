@@ -129,9 +129,9 @@ int tcp_server_accept (struct tcp_server *server, struct tcp **tcpp)
 
     while ((err = sock_accept(server->sock, &sock)) > 0) {
         // schedule
-        if ((err = event_yield(server->event, EVENT_READ))) {
+        if ((err = event_yield(server->event, EVENT_READ, NULL))) {
             log_error("event_yield");
-            return -1;
+            return err;
         }
     }
 

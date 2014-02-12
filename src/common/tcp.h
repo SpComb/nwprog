@@ -58,6 +58,11 @@ int tcp_sock (struct tcp *tcp);
 struct stream * tcp_read_stream (struct tcp *tcp);
 struct stream * tcp_write_stream (struct tcp *tcp);
 
+/*
+ * Set idle timeout for read operations.
+ */
+void tcp_read_timeout (struct tcp *tcp, const struct timeval *timeout);
+
 void tcp_destroy (struct tcp *tcp);
 
 #endif

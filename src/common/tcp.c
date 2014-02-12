@@ -11,11 +11,14 @@ int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
 {
     struct tcp *tcp = ctx;
     int err;
+    
+    const struct timeval *timeout = \
+        (tcp->read_timeout.tv_sec || tcp->read_timeout.tv_usec) ? &tcp->read_timeout : NULL;
 
     while ((err = sock_read(tcp->sock, buf, sizep)) > 0 && tcp->event) {
-        if (event_yield(tcp->event, EVENT_READ)) {
+        if ((err = event_yield(tcp->event, EVENT_READ, timeout))) {
             log_error("event_yield");
-            return -1;
+            return err;
         }
     }
 
@@ -38,7 +41,7 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
     int err;
 
     while ((err = sock_write(tcp->sock, buf, sizep)) > 0 && tcp->event) {
-        if (event_yield(tcp->event, EVENT_WRITE)) {
+        if (event_yield(tcp->event, EVENT_WRITE, NULL)) {
             log_error("event_write");
             return -1;
         }
@@ -68,7 +71,7 @@ int tcp_stream_sendfile (int fd, size_t *sizep, void *ctx)
     }
 
     while ((err = sock_sendfile(tcp->sock, fd, sizep)) > 0 && tcp->event) {
-        if (event_yield(tcp->event, EVENT_WRITE)) {
+        if (event_yield(tcp->event, EVENT_WRITE, NULL)) {
             log_error("event_write");
             return -1;
         }
@@ -148,6 +151,11 @@ struct stream * tcp_read_stream (struct tcp *tcp)
 struct stream * tcp_write_stream (struct tcp *tcp)
 {
     return tcp->write;
+}
+
+void tcp_read_timeout (struct tcp *tcp, const struct timeval *timeout)
+{
+    tcp->read_timeout = *timeout;
 }
 
 void tcp_destroy (struct tcp *tcp)

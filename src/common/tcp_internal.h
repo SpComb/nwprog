@@ -8,6 +8,8 @@ struct tcp {
 	int sock;
 	
 	struct event *event;
+    
+	struct timeval read_timeout;
 
 	struct stream *read, *write;
 };
