@@ -7,9 +7,12 @@
 /*
  * Blocking SOCK_STREAM interface.
  *
- * These functions should always make some progress, updating *sizep
+ * These functions should always make some progress, updating *sizep, when returning 0.
  *
- * Return <0 on error, 1 on EOF, 0 on success.
+ * EOF and timeout are handled similarly, with the difference that on EOF *sizep is 0, whereas on timeout
+ * *sizep remains set to nonzero.
+ *
+ * Return <0 on error, 1 on EOF/timeout, 0 on success.
  */
 struct stream_type {
     int (*read)(char *buf, size_t *sizep, void *ctx);
@@ -61,7 +64,7 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep);
 int stream_read_line (struct stream *stream, char **linep);
 
 /*
- * Copy from stream into a file.
+ * Copy from stream into a FILE.
  *
  * *sizep is the number of bytes to read from stream, or zero to read until EOF.
  * *sizep is updated on return to reflect the amount of bytes copied, which may be less than *sizep.

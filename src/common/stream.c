@@ -127,6 +127,8 @@ int _stream_clear (struct stream *stream)
  * This function is guaranteed to make progress.
  *
  * Returns 1 on EOF. There may still be data in the buffer.
+ * 
+ * Returns -1 on error or timeout.
  */
 int _stream_read (struct stream *stream)
 {
@@ -145,6 +147,11 @@ int _stream_read (struct stream *stream)
         return 1;
     }
 
+    if (err) {
+        log_debug("timeout");
+        return -1;
+    }
+
 	stream_read_mark(stream, size);
 
     return 0;
@@ -152,17 +159,24 @@ int _stream_read (struct stream *stream)
 
 int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
 {
+    int err;
+
     while (size) {
         size_t len = size;
 
-        if (stream->type->write(buf, &len, stream->ctx)) {
+        if ((err = stream->type->write(buf, &len, stream->ctx)) < 0) {
             log_pwarning("stream-write");
-            return -1;
+            return err;
         }
 
         if (!len) {
             log_debug("eof");
             return 1;
+        }
+
+        if (err) {
+            log_debug("timeout");
+            return -1;
         }
 
         buf += len;
@@ -175,6 +189,7 @@ int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
 int _stream_write (struct stream *stream)
 {
     size_t size = stream_writebuf_size(stream);
+    int err;
 
     if (!size) {
         // XXX
@@ -182,13 +197,18 @@ int _stream_write (struct stream *stream)
         return 0;
     }
 
-    if (stream->type->write(stream_writebuf_ptr(stream), &size, stream->ctx)) {
-        return -1;
+    if ((err = stream->type->write(stream_writebuf_ptr(stream), &size, stream->ctx) < 0)) {
+        return err;
     }
 
     if (!size) {
         log_debug("eof");
         return 1;
+    }
+
+    if (err) {
+        log_debug("timeout");
+        return -1;
     }
 
     stream_write_mark(stream, size);
