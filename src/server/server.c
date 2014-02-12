@@ -61,6 +61,9 @@ struct server_client {
 /* Idle timeout used for client reads; reset on every read operation */
 static const struct timeval SERVER_READ_TIMEOUT = { .tv_sec = 10 };
 
+/* Idle timeout used for client write buffering; reset on every write operation */
+static const struct timeval SERVER_WRITE_TIMEOUT = { .tv_sec = 10 };
+
 int server_create (struct event_main *event_main, struct server **serverp)
 {
 	struct server *server = NULL;
@@ -474,8 +477,9 @@ void server_client_task (void *ctx)
     struct server_client *client = ctx;
     int err;
 
-    // set idle timeout
+    // set idle timeouts
     tcp_read_timeout(client->tcp, &SERVER_READ_TIMEOUT);
+    tcp_write_timeout(client->tcp, &SERVER_WRITE_TIMEOUT);
 
     if ((err = server_client_request(client->server, client)) < 0) {
         log_warning("server_client_request");
