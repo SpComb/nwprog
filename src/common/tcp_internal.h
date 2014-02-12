@@ -9,7 +9,7 @@ struct tcp {
 	
 	struct event *event;
     
-	struct timeval read_timeout;
+	struct timeval read_timeout, write_timeout;
 
 	struct stream *read, *write;
 };

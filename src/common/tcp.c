@@ -7,16 +7,21 @@
 
 #include <unistd.h>
 
+const struct timeval * maybe_timeout (const struct timeval *timeout)
+{
+    if (timeout->tv_sec || timeout->tv_usec) 
+        return timeout;
+    else
+        return NULL;
+}
+
 int tcp_stream_read (char *buf, size_t *sizep, void *ctx)
 {
     struct tcp *tcp = ctx;
     int err;
     
-    const struct timeval *timeout = \
-        (tcp->read_timeout.tv_sec || tcp->read_timeout.tv_usec) ? &tcp->read_timeout : NULL;
-
     while ((err = sock_read(tcp->sock, buf, sizep)) > 0 && tcp->event) {
-        if ((err = event_yield(tcp->event, EVENT_READ, timeout))) {
+        if ((err = event_yield(tcp->event, EVENT_READ, maybe_timeout(&tcp->read_timeout)))) {
             log_error("event_yield");
             return err;
         }
@@ -41,9 +46,9 @@ int tcp_stream_write (const char *buf, size_t *sizep, void *ctx)
     int err;
 
     while ((err = sock_write(tcp->sock, buf, sizep)) > 0 && tcp->event) {
-        if (event_yield(tcp->event, EVENT_WRITE, NULL)) {
-            log_error("event_write");
-            return -1;
+        if (event_yield(tcp->event, EVENT_WRITE, maybe_timeout(&tcp->write_timeout))) {
+            log_error("event_yield");
+            return err;
         }
     }
 
@@ -71,9 +76,9 @@ int tcp_stream_sendfile (int fd, size_t *sizep, void *ctx)
     }
 
     while ((err = sock_sendfile(tcp->sock, fd, sizep)) > 0 && tcp->event) {
-        if (event_yield(tcp->event, EVENT_WRITE, NULL)) {
-            log_error("event_write");
-            return -1;
+        if (event_yield(tcp->event, EVENT_WRITE, maybe_timeout(&tcp->write_timeout))) {
+            log_error("event_yield");
+            return err;
         }
     }
 
@@ -156,6 +161,11 @@ struct stream * tcp_write_stream (struct tcp *tcp)
 void tcp_read_timeout (struct tcp *tcp, const struct timeval *timeout)
 {
     tcp->read_timeout = *timeout;
+}
+
+void tcp_write_timeout (struct tcp *tcp, const struct timeval *timeout)
+{
+    tcp->write_timeout = *timeout;
 }
 
 void tcp_destroy (struct tcp *tcp)
