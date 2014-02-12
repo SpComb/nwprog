@@ -1,11 +1,11 @@
+// vsnprintf with -gnu99
+#define _POSIX_C_SOURCE 200112L
+
 #include "common/http.h"
 
 #include "common/log.h"
 #include "common/parse.h"
 #include "common/util.h"
-
-// vsnprintf with -gnu99
-#define _POSIX_C_SOURCE 200112L
 
 #include <stdarg.h>
 #include <stdbool.h>
