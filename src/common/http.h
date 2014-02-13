@@ -50,15 +50,6 @@ const char * http_status_str (enum http_status status);
 int http_create (struct http **httpp, struct stream *read, struct stream *write);
 
 /*
- * Send (part of) a request body.
- *
- * The available data in the given buffer is passed in as *lenp, and the number of bytes sent out is returned in *lenp.
- *
- * Returns 1 on EOF, <0 on error.
- */
-int http_write_buf (struct http *http, const char *buf, size_t *lenp);
-
-/*
  * Write formatted data, as part of the message body.
  */
 int http_vwrite (struct http *http, const char *fmt, va_list args);
@@ -76,7 +67,7 @@ int http_write_request (struct http *http, const char *method, const char *fmt, 
  *
  * Reason can be passed as NULL if status is a recognized status code.
  */
-int http_write_response (struct http *http, enum http_status status, const char *reason);
+int http_write_response (struct http *http, const char *version, enum http_status status, const char *reason);
 
 /*
  * Send one HTTP header.
@@ -98,6 +89,24 @@ int http_write_headers (struct http *http);
  * Returns 1 on (unexpected) EOF, <0 on error.
  */
 int http_write_file (struct http *http, int fd, size_t content_length);
+
+/*
+ * Send a HTTP/1.1 'Transfer-Encoding: chunked' entity chunk.
+ */
+int http_write_chunk (struct http *http, const char *buf, size_t size);
+
+/*
+ * Send a HTTP/1.1 'Transfer-Encoding: chunked' entity chunk based on string formatting.
+ */
+int http_vprint_chunk (struct http *http, const char *fmt, va_list args);
+int http_print_chunk (struct http *http, const char *fmt, ...)
+	__attribute((format (printf, 2, 3)));
+
+/*
+ * Send a HTTP/1.1 'Transfer-Encoding: chunked' last-chunk and empty trailer.
+ */
+int http_write_chunks (struct http *http);
+
 
 
 

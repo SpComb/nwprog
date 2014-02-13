@@ -67,11 +67,8 @@ error:
 	return -1;
 }
 
-int http_write_buf (struct http *http, const char *buf, size_t *lenp)
-{
-    return stream_write(http->write, buf, *lenp);
-}
 
+/* Writing */
 int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
     return stream_vprintf(http->write, fmt, args);
@@ -109,6 +106,10 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 
 	return 0;
 }
+
+
+
+/* Reading */
 
 /*
  * Read arbitrary data from the connection.
@@ -208,13 +209,16 @@ int http_write_request (struct http *http, const char *method, const char *fmt, 
 	return 0;
 }
 
-int http_write_response (struct http *http, unsigned status, const char *reason)
+int http_write_response (struct http *http, const char *version, enum http_status status, const char *reason)
 {
+    if (!version) {
+        version = HTTP_VERSION;
+    }
 	if (!reason) {
 		reason = http_status_str(status);
 	}
 
-	return http_write_line(http, "%s %u %s", HTTP_VERSION, status, reason);
+	return http_write_line(http, "%s %u %s", version, status, reason);
 }
 
 int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args)
@@ -287,6 +291,88 @@ int http_write_file (struct http *http, int fd, size_t content_length)
 	}
 
 	return 0;
+}
+
+// 3.6.1 Chunked Transfer Coding
+int http_write_chunk (struct http *http, const char *buf, size_t size)
+{
+    int err;
+
+    log_debug("%zu", size);
+
+    if ((err = http_writef(http, "%zx\r\n", size)))
+        return err;
+
+    if ((err = stream_write(http->write, buf, size)))
+        return err;
+
+    if ((err = http_writef(http, "\r\n")))
+        return err;
+
+    return 0;
+}
+
+int http_vprint_chunk (struct http *http, const char *fmt, va_list inargs)
+{
+    va_list args;
+    int err;
+    
+    // first, determine size
+    int size;
+    
+    va_copy(args, inargs);
+    size = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    
+    if (size < 0) {
+        log_perror("snprintf");
+        return -1;
+    }
+
+    if (!size) {
+        log_warning("emtpy chunk");
+        return 0;
+    }
+    
+    log_debug("%d", size);
+
+    // chunk header
+    if ((err = http_writef(http, "%x\r\n", size)))
+        return err;
+    
+    // print formatted chunk
+    va_copy(args, inargs);
+    err = stream_vprintf(http->write, fmt, args);
+    va_end(args);
+
+    if (err < 0)
+        return err;
+
+    // TODO: verify that vprintf'd size matches?
+
+    // chunk trailer
+    if ((err = http_writef(http, "\r\n")))
+        return err;
+
+    return 0;
+}
+
+int http_print_chunk (struct http *http, const char *fmt, ...)
+{
+    va_list args;
+    int err;
+
+    va_start(args, fmt);
+    err = http_vprint_chunk(http, fmt, args);
+    va_end(args);
+
+    return err;
+}
+
+int http_write_chunks (struct http *http)
+{
+    // last-chunk + empty trailer + CRLF
+    return http_writef(http, "0\r\n\r\n");
 }
 
 int http_parse_request (char *line, const char **methodp, const char **pathp, const char **versionp)
