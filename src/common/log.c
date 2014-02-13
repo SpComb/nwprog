@@ -18,24 +18,31 @@ static const char * log_level_str (enum log_level level) {
 	}
 }
 
-void _log (const char *prefix, enum log_level level, int flags, const char *fmt, ...)
+void _logv (const char *prefix, enum log_level level, int flags, const char *fmt, va_list args)
 {
-	va_list args;
-	
 	// supress below configured log level
 	if (level > _log_level)
 		return;
+    
+    if (!(flags & LOG_NOPRE))
+    	fprintf(stderr, "%-8s %30s: ", log_level_str(level), prefix);
 
-	fprintf(stderr, "%-8s %30s: ", log_level_str(level), prefix);
-
-	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
-	va_end(args);
 	
 	if (flags & LOG_ERRNO)
 		fprintf(stderr, ": %s", strerror(errno));
 
-	fprintf(stderr, "\n");
+    if (!(flags & LOG_NOLN))
+	    fprintf(stderr, "\n");
+}
+
+void _log (const char *prefix, enum log_level level, int flags, const char *fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    _logv(prefix, level, flags, fmt, args);
+    va_end(args);
 }
 
 void log_set_level (enum log_level level)
