@@ -184,7 +184,7 @@ int dns_response (struct dns *dns)
             rrtag = "NS";
 
         } else if (i < header.ancount + header.nscount + header.arcount) {
-            rrtag = "NS";
+            rrtag = "AR";
 
         } else {
             rrtag = "XX";
