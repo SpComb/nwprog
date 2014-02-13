@@ -8,6 +8,8 @@
 #   include "common/ssl.h"
 #endif
 
+#include <stdbool.h>
+
 /*
  * HTTP Client.
  */
@@ -28,9 +30,9 @@ int client_set_ssl (struct client *client, struct ssl_main *ssl_main);
 /*
  * Write response data to FILE, or NULL to bitbucket.
  *
- * The given FILE is owned by the client, and will be closed...
+ *  close:   client will close FILE after use.
  */
-int client_set_response_file (struct client *client, FILE *file);
+int client_set_response_file (struct client *client, FILE *file, bool close);
 
 /*
  * Change HTTP version to use for requests.

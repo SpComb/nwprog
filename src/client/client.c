@@ -16,7 +16,14 @@ struct client {
 #ifdef WITH_SSL
     struct ssl_main *ssl_main;
 #endif
+
+    /* Copy out response body */
 	FILE *response_file;
+
+    /* Close response_file after use */
+    bool response_file_close;
+
+    /* Send HTTP/1.1 requests */
     bool request_http11;
 
     /* Transport; either-or */
@@ -90,6 +97,7 @@ int client_create (struct client **clientp)
 
 	return 0;
 }
+
 #ifdef WITH_SSL
 int client_set_ssl (struct client *client, struct ssl_main *ssl_main)
 {
@@ -98,12 +106,18 @@ int client_set_ssl (struct client *client, struct ssl_main *ssl_main)
     return 0;
 }
 #endif
-int client_set_response_file (struct client *client, FILE *file)
+
+int client_set_response_file (struct client *client, FILE *file, bool close)
 {
-	if (client->response_file && fclose(client->response_file))
-		log_pwarning("fclose");
+	if (client->response_file && client->response_file_close) {
+        log_debug("closing: %p", client->response_file);
+
+        if (fclose(client->response_file))
+    		log_pwarning("fclose");
+    }
 
 	client->response_file = file;
+    client->response_file_close = close;
 
 	return 0;
 }
@@ -197,6 +211,19 @@ int client_open_https (struct client *client, const struct url *url)
 
 int client_open (struct client *client, const struct url *url)
 {
+    int err;
+
+    if (client->http) {
+        if ((err = client_close(client))) {
+            log_warning("failed to close old connection while opening new one, continuing regardless");
+        }
+    }
+
+    if (!url->host || !*url->host) {
+        log_error("no host given");
+        return 1;
+    }
+
     if (!url->scheme || !*url->scheme || strcmp(url->scheme, "http") == 0) {
         return client_open_http(client, url);
         
@@ -514,11 +541,15 @@ int client_get (struct client *client, const struct url *url)
 
     // close if not persistent, or error
     if (err) {
-       if ((err = client_close(client)))
+       if (client_close(client))
             log_warning("client_close");
     }
 
-    return response.status;
+    if (err < 0) {
+        return err;
+    } else {
+        return response.status;
+    }
 }
 
 int client_put (struct client *client, const struct url *url, FILE *file)
@@ -566,11 +597,15 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 
     // close if not persistent, or error
     if (err) {
-       if ((err = client_close(client)))
+       if (client_close(client))
             log_warning("client_close");
     }
 
-    return response.status;
+    if (err < 0) {
+        return err;
+    } else {
+        return response.status;
+    }
 }
 
 int client_close (struct client *client)
@@ -608,6 +643,9 @@ void client_destroy (struct client *client)
 
     if (client->http)
         http_destroy(client->http);
+
+    if (client->response_file && client->response_file_close)
+        fclose(client->response_file);
 
 	free(client);
 }
