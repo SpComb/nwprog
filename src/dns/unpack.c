@@ -121,6 +121,9 @@ int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size)
     int err;
     uint8_t prefix;
     char *name = buf;
+    int count = 0;
+
+    char *pkt_ptr = NULL;
 
     while (!(err = dns_peek_u8(pkt, &prefix)) && prefix) {
         if (prefix & 0xc0) {
@@ -132,8 +135,14 @@ int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size)
             // mask out prefix bits
             pointer &= ~0xc000;
 
-            // TODO: implement support for label compression
-            log_warning("unsupported compressed label @ %u", pointer);
+            // recurse out into packet
+            if (!pkt_ptr) {
+                pkt_ptr = pkt->ptr;
+            }
+
+            log_debug("@%u", pointer);
+
+            pkt->ptr = pkt->buf + pointer;
 
         } else {
             uint8_t len;
@@ -160,6 +169,11 @@ int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size)
 
             name += len;
         }
+
+        if (count++ > DNS_LABELS) {
+            log_warning("label count overflow: %d", count);
+            return 1;
+        }
     }
 
     if (err)
@@ -171,6 +185,10 @@ int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size)
         return 1;
 
     *name = '\0';
+
+    // restore after pointer-chasing
+    if (pkt_ptr)
+        pkt->ptr = pkt_ptr;
 
     return 0;
 }

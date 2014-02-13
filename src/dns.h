@@ -9,6 +9,9 @@
 #define DNS_LABEL 63
 #define DNS_NAME 255
 
+/* Number of labels in a name */
+#define DNS_LABELS 128
+
 /* Per EDNS0... */
 #define DNS_PACKET (4 * 1024)
 
