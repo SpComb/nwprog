@@ -32,8 +32,17 @@ int server_listen (struct server *server, const char *host, const char *port);
 
 /*
  * Add a server handler for requests.
+ *
+ * The given method/path must remain valid of the lifetime of the server.
  */
 int server_add_handler (struct server *server, const char *method, const char *path, struct server_handler *handler);
+
+/*
+ * Add a custom header to all responses.
+ *
+ * The given header/value are copied, and need not remain valid for the lifetime of the server.
+ */
+int server_add_header (struct server *server, const char *name, const char *value);
 
 /*
  * Read request header.

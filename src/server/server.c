@@ -14,9 +14,15 @@
 
 struct server {
     struct event_main *event_main;
-
+    
+    /* Listen tasks */
 	TAILQ_HEAD(server_listens, server_listen) listens;
+
+    /* Handler lookup */
 	TAILQ_HEAD(server_handlers, server_handler_item) handlers;
+
+    /* Response headers */
+    TAILQ_HEAD(server_headers, server_header) headers;
 };
 
 struct server_listen {
@@ -33,6 +39,13 @@ struct server_handler_item {
 	struct server_handler *handler;
 
 	TAILQ_ENTRY(server_handler_item) server_handlers;
+};
+
+struct server_header {
+    char *name;
+    char *value;
+
+    TAILQ_ENTRY(server_header) server_headers;
 };
 
 struct server_client {
@@ -75,6 +88,7 @@ int server_create (struct event_main *event_main, struct server **serverp)
 
 	TAILQ_INIT(&server->listens);
 	TAILQ_INIT(&server->handlers);
+    TAILQ_INIT(&server->headers);
 
     server->event_main = event_main;
 
@@ -132,6 +146,38 @@ int server_lookup_handler (struct server *server, const char *method, const char
 	
 	log_warning("%s: %d", path, status);
 	return status;
+}
+
+int server_add_header (struct server *server, const char *name, const char *value)
+{
+    struct server_header *header;
+
+    if (!(header = calloc(1, sizeof(*header)))) {
+        log_perror("calloc");
+        return -1;
+    }
+
+    if (!(header->name = strdup(name))) {
+        log_perror("strdup");
+        goto error;
+    }
+
+    if (!(header->value = strdup(value))) {
+        log_perror("strdup");
+        goto error;
+    }
+
+    // ok
+    TAILQ_INSERT_TAIL(&server->headers, header, server_headers);
+
+    return 0;
+
+error:
+    free(header->value);
+    free(header->name);
+    free(header);
+
+    return -1;
 }
 
 int server_request (struct server_client *client)
@@ -230,6 +276,8 @@ int server_request_file (struct server_client *client, int fd)
 
 int server_response (struct server_client *client, enum http_status status, const char *reason)
 {
+    int err;
+
 	if (client->status) {
 		log_fatal("attempting to re-send status: %u", status);
 		return -1;
@@ -239,10 +287,20 @@ int server_response (struct server_client *client, enum http_status status, cons
 
 	client->status = status;
 
-	if (http_write_response(client->http, status, reason)) {
+	if ((err = http_write_response(client->http, status, reason))) {
 		log_error("failed to write response line");
-		return -1;
+		return err;
 	}
+
+    // custom headers
+    struct server_header *header;
+
+    TAILQ_FOREACH(header, &client->server->headers, server_headers) {
+        if ((err = http_write_header(client->http, header->name, "%s", header->value))) {
+            log_error("failed to write response header");
+            return -1;
+        }
+    }
 	
 	return 0;
 }
@@ -590,12 +648,24 @@ error:
 
 void server_destroy (struct server *server)
 {
+    // TODO: listens
+
 	// handlers
     struct server_handler_item *h;
 
     while ((h = TAILQ_FIRST(&server->handlers))) {
         TAILQ_REMOVE(&server->handlers, h, server_handlers);
         free(h);
+    }
+
+    // headers
+    struct server_header *sh;
+
+    while ((sh = TAILQ_FIRST(&server->headers))) {
+        TAILQ_REMOVE(&server->headers, sh, server_headers);
+        free(sh->name);
+        free(sh->value);
+        free(sh);
     }
 
 	free(server);
