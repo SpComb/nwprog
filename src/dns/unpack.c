@@ -214,3 +214,40 @@ int dns_unpack_record (struct dns_packet *pkt, struct dns_record *rr)
     );
 }
 
+int dns_unpack_rdata (struct dns_packet *pkt, struct dns_record *rr, union dns_rdata *rdata)
+{
+    int err = 0;
+
+    // set packet window to rdata
+    char *pkt_ptr = pkt->ptr, *pkt_end = pkt->end;
+
+    pkt->ptr = rr->rdatap;
+    pkt->end = pkt->ptr + rr->rdlength;
+
+    switch (rr->type) {
+        case DNS_A:
+            err = dns_unpack_u32(pkt, &rdata->A);
+            break;
+
+        case DNS_NS:
+            err = dns_unpack_name(pkt, rdata->NS, sizeof(rdata->NS));
+            break;
+        
+        case DNS_CNAME:
+            err = dns_unpack_name(pkt, rdata->CNAME, sizeof(rdata->CNAME));
+            break;
+
+        case DNS_PTR:
+            err = dns_unpack_name(pkt, rdata->PTR, sizeof(rdata->PTR));
+            break;
+
+        case DNS_MX:
+            err = dns_unpack_u16(pkt, &rdata->MX.preference) || dns_unpack_name(pkt, rdata->MX.exchange, sizeof(rdata->MX.exchange));
+            break;
+    }
+
+    pkt->ptr = pkt_ptr;
+    pkt->end = pkt_end;
+
+    return err;
+}

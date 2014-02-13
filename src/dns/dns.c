@@ -161,20 +161,72 @@ int dns_response (struct dns *dns)
         );
     }
      
-    for (int i = 0; i < header.ancount; i++) {
+    for (int i = 0; i < header.ancount + header.nscount + header.arcount; i++) {
         struct dns_record rr;
+        union dns_rdata rdata;
 
         if ((err = dns_unpack_record(&response, &rr))) {
             log_warning("dns_unpack_resource: %d", i);
             return err;
         }
 
-        log_info("AN: %s %s:%s %d %d:...", rr.name,
+        if ((err = dns_unpack_rdata(&response, &rr, &rdata))) {
+            log_warning("dns_unpack_rdata: %d", i);
+            return err;
+        }
+
+        const char *rrtag;
+
+        if (i < header.ancount) {
+            rrtag = "AN";
+
+        } else if (i < header.ancount + header.nscount) {
+            rrtag = "NS";
+
+        } else if (i < header.ancount + header.nscount + header.arcount) {
+            rrtag = "NS";
+
+        } else {
+            rrtag = "XX";
+        }
+
+        log_ninfo("%s: %s %s:%s %d ", rrtag, rr.name,
                 dns_class_str(rr.class),
                 dns_type_str(rr.type),
-                rr.ttl,
-                rr.rdlength
+                rr.ttl
         );
+
+        // decode
+        uint8_t *u8;
+
+        switch (rr.type) {
+            case DNS_A:
+                u8 = (uint8_t *) &rdata.A;
+
+                log_qinfo("%d.%d.%d.%d", u8[3], u8[2], u8[1], u8[0]);
+
+                break;
+
+            case DNS_NS:
+                log_qinfo("%s", rdata.NS);
+                break;
+
+            case DNS_CNAME:
+                log_qinfo("%s", rdata.CNAME);
+                break;
+
+            case DNS_PTR:
+                log_qinfo("%s", rdata.PTR);
+                break;
+
+            case DNS_MX:
+                log_qinfo("%d:%s", rdata.MX.preference, rdata.MX.exchange);
+                break;
+
+            default:
+                log_qinfo("%d:...", rr.rdlength);
+                break;
+        }
     }
 
     return 0;

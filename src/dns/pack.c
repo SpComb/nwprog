@@ -152,4 +152,3 @@ int dns_pack_record (struct dns_packet *pkt, const struct dns_record *rr)
         ||  dns_pack_buf(pkt, rr->rdatap, rr->rdlength)
     );
 }
-
