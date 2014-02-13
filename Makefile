@@ -59,6 +59,9 @@ bin/server: build/src/server.o \
 	build/src/common/log.o
 
 bin/dns: build/src/dns.o \
+	build/src/dns/dns.o \
+	build/src/common/udp.o build/src/common/sock.o build/src/common/event.o \
+	build/src/common/util.o \
 	build/src/common/log.o
 
 bin/test-url: \
@@ -76,6 +79,14 @@ bin/test-parse: \
 	build/test/parse.o \
 	build/test/test.o \
 	build/src/common/parse.o \
+	build/src/common/log.o
+
+bin/test-dns: \
+	build/test/dns.o \
+	build/src/dns/dns.o \
+	build/src/dns/pack.o \
+	build/src/common/udp.o build/src/common/sock.o build/src/common/event.o \
+	build/src/common/util.o \
 	build/src/common/log.o
 
 build:
