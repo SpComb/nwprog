@@ -59,7 +59,7 @@ bin/server: build/src/server.o \
 	build/src/common/log.o
 
 bin/dns: build/src/dns.o \
-	build/src/dns/dns.o \
+	build/src/dns/dns.o build/src/dns/pack.o \
 	build/src/common/udp.o build/src/common/sock.o build/src/common/event.o \
 	build/src/common/util.o \
 	build/src/common/log.o
@@ -84,10 +84,12 @@ bin/test-parse: \
 bin/test-dns: \
 	build/test/dns.o \
 	build/src/dns/dns.o \
-	build/src/dns/pack.o \
+	build/src/dns/pack.o build/src/dns/unpack.o \
 	build/src/common/udp.o build/src/common/sock.o build/src/common/event.o \
 	build/src/common/util.o \
-	build/src/common/log.o
+	build/src/common/log.o \
+	build/test/test.o
+
 
 build:
 	mkdir -p bin bin/test
