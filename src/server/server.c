@@ -219,15 +219,8 @@ int server_request (struct server_client *client)
 	const char *method, *path, *version;
 	int err;
 
-	if ((err = http_read_request(client->http, &method, &path, &version)) < 0) {
-		log_warning("http_read_request");
-        return 400;
-	}
-
-    if (err) {
-        log_debug("eof");
-        return 1;
-    }
+	if ((err = http_read_request(client->http, &method, &path, &version)))
+        return err;
 
 	if (strlen(method) >= sizeof(client->request.method)) {
 		log_warning("method is too long: %zu", strlen(method));
@@ -276,15 +269,8 @@ int server_request_header (struct server_client *client, const char **namep, con
 {
 	int err;
 
-	if ((err = http_read_header(client->http, namep, valuep)) < 0) {
-		log_warning("http_read_header");
-		return err;
-	}
-
-	if (err) {
-        log_warning("eof");
-		return 1;
-    }
+	if ((err = http_read_header(client->http, namep, valuep)))
+        return err;
 
 	log_info("\t%20s : %s", *namep, *valuep);
 
@@ -592,7 +578,9 @@ int server_client_request (struct server *server, struct server_client *client)
 error:	
 	// response
 	if (err < 0) {
-		status = HTTP_INTERNAL_SERVER_ERROR;
+        // sock send/recv error or timeout, or other internal error
+        // abort without response
+        return err;
 
 	} else if (err > 0) {
 		status = err;
@@ -601,8 +589,8 @@ error:
 		status = 0;
 
 	} else {
-		log_warning("status not sent, defaulting to 500");
-		status = 500;
+		log_warning("status not sent, defaulting to 200");
+		status = 200;
 	}
 	
 	if (status && client->response.status) {
