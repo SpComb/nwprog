@@ -133,6 +133,8 @@ int client_open_http (struct client *client, const struct url *url)
         return err;
     }
 
+    log_info("%s", sockpeer_str(tcp_sock(client->tcp)));
+
 	// http
 	if ((err = http_create(&client->http, tcp_read_stream(client->tcp), tcp_write_stream(client->tcp))))
 		return err;
@@ -159,6 +161,8 @@ int client_open_https (struct client *client, const struct url *url)
         log_error("ssl_client");
         return err;
     }
+    
+    log_info("%s", sockpeer_str(ssl_sock(client->ssl)));
 
 	// http
 	if ((err = http_create(&client->http, ssl_read_stream(client->ssl), ssl_write_stream(client->ssl))))
@@ -186,26 +190,22 @@ int client_open (struct client *client, const struct url *url)
     }
 }
 
-// XXX: this function exists only for the logging prefix atm
-int client_request_headers (struct client *client, const struct client_request *request)
+int client_request_header (struct client *client, const char *name, const char *fmt, ...)
 {
-    struct client_header *header;
-	int err = 0;
+    va_list args;
+    int err;
+	
+    va_start(args, fmt);
+    log_ninfo("\t%20s: ", name);
+    logv_qinfo(fmt, args);
+    va_end(args);
+            
 
-	log_info("\t%20s: %s", "Host", request->url->host);
-	err |= http_write_header(client->http, "Host", "%s", request->url->host);
+    va_start(args, fmt);
+    err = http_write_headerv(client->http, name, fmt, args);
+    va_end(args);
 
-	if (request->content_length) {
-		log_info("\t%20s: %zu", "Content-Length", request->content_length);
-		err |= http_write_header(client->http, "Content-length", "%zu", request->content_length);
-	}
-
-    TAILQ_FOREACH(header, &client->headers, client_headers) {
-        log_info("\t%20s: %s", header->name, header->value);
-        err |= http_write_header(client->http, header->name, "%s", header->value);
-    }
-
-	return err;
+    return err;
 }
 
 /*
@@ -236,6 +236,7 @@ int client_request_file (struct client *client, const struct client_request *req
     
     return 0;
 }
+
 
 int client_response_header (struct client *client, struct client_response *response, const char *header, const char *value)
 {
@@ -294,65 +295,19 @@ int client_response_file (struct client *client, struct client_response *respons
     return 0;
 }
 
-/*
- * Send one request, read and process the response.
- *
- * Returns 0 on success with a persistent connection, 1 on success with a non-persistent connection, <0 on error.
- */
-static int client_request (struct client *client, struct client_request *request, struct client_response *response)
+int client_response (struct client *client, struct client_request *request, struct client_response *response)
 {
-	int err;
-    
-    // request
-    {
-        // url parses these parts separately, so we must handle them separately..
-        if (request->url->query && *request->url->query) {
-            log_info("%s /%s?%s", request->method, request->url->path, request->url->query);
+    int err;
+    const char *reason, *version;
 
-            err = http_write_request(client->http, request->method, "/%s?%s", request->url->path, request->url->query);
-
-        } else {
-            log_info("%s /%s", request->method, request->url->path);
-
-            err = http_write_request(client->http, request->method, "/%s", request->url->path);
-        }
-
-        if (err) {
-            log_error("error sending request line");
-            return -1;
-        }
-
-        if ((err = client_request_headers(client, request))) {
-            log_error("error sending request headers");
-            return -1;
-        }
-
-        if ((err = http_write_headers(client->http))) {
-            log_error("error sending request end-of-headers");
-            return -1;
-        }
-
-        if ((err = client_request_file(client, request))) {
-            log_error("error sending request file");
-            return -1;
-        }
+    if ((err = http_read_response(client->http, &version, &response->status, &reason))) {
+        log_error("error reading response line");
+        return err;
     }
+    
+    log_info("%s %u %s", version, response->status, reason);
 
-	log_debug("end-of-request");
-	
-	// response
-	{
-		const char *reason, *version;
-
-		if ((err = http_read_response(client->http, &version, &response->status, &reason))) {
-			log_error("error reading response line");
-			return -1;
-		}
-		
-		log_info("%s %u %s", version, response->status, reason);
-	}
-
-	// response headers
+	// headers
 	{
 		const char *header, *value;
 		
@@ -368,7 +323,7 @@ static int client_request (struct client *client, struct client_request *request
 		}
 	}
 
-	// response body
+	// body
 	if (
 			(response->status >= 100 && response->status <= 199)
 		||	(response->status == 204 || response->status == 304)
@@ -409,7 +364,76 @@ static int client_request (struct client *client, struct client_request *request
 	
 	log_info("%s", "");
 
-	return err;
+    return err;
+}
+
+/*
+ * Send one request, read and process the response.
+ *
+ * Returns 0 on success with a persistent connection, 1 on success with a non-persistent connection, <0 on error.
+ */
+static int client_request (struct client *client, struct client_request *request, struct client_response *response)
+{
+	int err;
+    
+    // request
+    {
+        const char *version = "HTTP/1.0";
+
+        // url parses these parts separately, so we must handle them separately..
+        if (request->url->query && *request->url->query) {
+            log_info("%s /%s?%s %s", request->method, request->url->path, request->url->query, version);
+
+            err = http_write_request(client->http, version, request->method, "/%s?%s", request->url->path, request->url->query);
+
+        } else {
+            log_info("%s /%s %s", request->method, request->url->path, version);
+
+            err = http_write_request(client->http, version, request->method, "/%s", request->url->path);
+        }
+
+        if (err) {
+            log_error("error sending request line");
+            return -1;
+        }
+
+        if ((err = client_request_header(client, "Host", "%s", request->url->host))) {
+            log_error("error sending request host header");
+            return err;
+        }
+
+        if (request->content_length) {
+            if ((err = client_request_header(client, "Content-length", "%zu", request->content_length))) {
+                log_error("error sending request content-length header");
+                return err;
+            }
+        }
+
+        // custom headers
+        struct client_header *header;
+
+        TAILQ_FOREACH(header, &client->headers, client_headers) {
+            if ((err = client_request_header(client, header->name, "%s", header->value))) {
+                log_error("error sending request header: %s", header->name);
+                return err;
+            }
+        }
+
+        if ((err = http_write_headers(client->http))) {
+            log_error("error sending request end-of-headers");
+            return -1;
+        }
+
+        if ((err = client_request_file(client, request))) {
+            log_error("error sending request file");
+            return -1;
+        }
+
+        log_info("%s", "");
+    }
+	
+	// response
+    return client_response(client, request, response);
 }
 
 int client_get (struct client *client, const struct url *url)
