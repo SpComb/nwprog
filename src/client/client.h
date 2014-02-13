@@ -38,6 +38,8 @@ int client_add_header (struct client *client, const char *header, const char *va
 
 /*
  * Open a client for the given scheme://host:port.
+ *
+ * The connection will be used for any subsequent GET/PUT request.
  */
 int client_open (struct client *client, const struct url *url);
 
@@ -54,6 +56,11 @@ int client_get (struct client *client, const struct url *url);
  * Returns HTTP response status, or <0 on error.
  */
 int client_put (struct client *client, const struct url *url, FILE *file);
+
+/*
+ * Close any open connection.
+ */
+int client_close (struct client *client);
 
 /*
  * Release any resources used by the client.

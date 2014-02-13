@@ -24,7 +24,7 @@ struct client {
     struct ssl *ssl;
 #endif
 
-    /* Protocol */
+    /* Protocol; NULL if not open. */
 	struct http *http;
 
     /* Headers */
@@ -64,6 +64,9 @@ struct client_response {
 
 	/* Write response content to FILE */
 	FILE *content_file;
+
+    /* Close connection after response */
+    bool close;
 };
 
 int client_create (struct client **clientp)
@@ -248,7 +251,16 @@ int client_response_header (struct client *client, struct client_response *respo
 
         if (!response->content_length)
             response->content_length_zero = true;
-	}
+
+	} else if (strcasecmp(header, "Connection") == 0) {
+        if (strcasecmp(value, "close") == 0) {
+            log_debug("explicit connection-close");
+
+            response->close = true;
+        } else {
+            log_debug("unknown Connection: %s", value);
+        }
+    }
 
 	return 0;
 }
@@ -282,6 +294,11 @@ int client_response_file (struct client *client, struct client_response *respons
     return 0;
 }
 
+/*
+ * Send one request, read and process the response.
+ *
+ * Returns 0 on success with a persistent connection, 1 on success with a non-persistent connection, <0 on error.
+ */
 static int client_request (struct client *client, struct client_request *request, struct client_response *response)
 {
 	int err;
@@ -332,7 +349,7 @@ static int client_request (struct client *client, struct client_request *request
 			return -1;
 		}
 		
-		log_info("%u %s", response->status, reason);
+		log_info("%s %u %s", version, response->status, reason);
 	}
 
 	// response headers
@@ -383,6 +400,12 @@ static int client_request (struct client *client, struct client_request *request
         // no more requests
 		err = 1;
 	}
+
+    if (response->close) {
+        log_debug("explicit close-response");
+
+        err = 1;
+    }
 	
 	log_info("%s", "");
 
@@ -393,6 +416,10 @@ int client_get (struct client *client, const struct url *url)
 {
 	int err;
 
+    // open connection if needed
+    if (!client->http && (err = client_open(client, url)))
+        return err;
+
 	struct client_request request = {
 		.url	= url,
 		.method	= "GET",
@@ -402,8 +429,15 @@ int client_get (struct client *client, const struct url *url)
 		.content_file	= client->response_file,
 	};
 	
-	if ((err = client_request(client, &request, &response)) < 0)
-		return err;
+	if ((err = client_request(client, &request, &response)) < 0) {
+        log_error("client_request");
+    }
+
+    // close if not persistent, or error
+    if (err) {
+       if ((err = client_close(client)))
+            log_warning("client_close");
+    }
 
     return response.status;
 }
@@ -430,6 +464,10 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 		return -1;
 	}
 	
+    // open connection if needed
+    if (!client->http && (err = client_open(client, url)))
+        return err;
+
 	// request
 	struct client_request request = {
 		.url			= url,
@@ -443,10 +481,41 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 		.content_file	= client->response_file,
 	};
 
-	if ((err = client_request(client, &request, &response)) < 0)
-		return err;
+	if ((err = client_request(client, &request, &response)) < 0) {
+        log_error("client_request");
+    }
+
+    // close if not persistent, or error
+    if (err) {
+       if ((err = client_close(client)))
+            log_warning("client_close");
+    }
 
     return response.status;
+}
+
+int client_close (struct client *client)
+{
+    log_info("%s", "");
+
+    http_destroy(client->http); client->http = NULL;
+
+#ifdef WITH_SSL
+    if (client->ssl) {
+        // XXX: clean close
+        ssl_destroy(client->ssl);
+        client->ssl = NULL;
+
+    } else if (client->tcp) {
+#else
+    if (client->tcp) {
+#endif
+        // XXX: clean FIN, vs RST?
+        tcp_destroy(client->tcp);
+        client->tcp = NULL;;
+    }
+
+    return 0;
 }
 
 void client_destroy (struct client *client)
