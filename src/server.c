@@ -153,6 +153,13 @@ int main (int argc, char **argv)
 		}
 	}
 
+    if (options.iam) {
+        if ((err = server_add_header(options.server, "Iam", options.iam))) {
+            log_fatal("server_add_header: Iam: %s", options.iam);
+            goto error;
+        }
+    }
+
 	while (optind < argc && !err) {
 		if ((err = main_listen(&options, argv[optind++]))) {
             log_fatal("server");
