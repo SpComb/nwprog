@@ -1,6 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#include "common/http.h"
 #include "common/url.h"
 
 #ifdef WITH_SSL
@@ -30,6 +31,13 @@ int client_set_ssl (struct client *client, struct ssl_main *ssl_main);
  * The given FILE is owned by the client, and will be closed...
  */
 int client_set_response_file (struct client *client, FILE *file);
+
+/*
+ * Change HTTP version to use for requests.
+ *
+ * Using HTTP_11 enables connection persistence.
+ */
+int client_set_request_version (struct client *client, enum http_version version);
 
 /*
  * Add a custom header to requests

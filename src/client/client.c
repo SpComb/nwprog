@@ -17,6 +17,7 @@ struct client {
     struct ssl_main *ssl_main;
 #endif
 	FILE *response_file;
+    bool request_http11;
 
     /* Transport; either-or */
     struct tcp *tcp;
@@ -58,9 +59,14 @@ struct client_request {
 struct client_response {
 	unsigned status;
 
-	/* Headers */
-    bool content_length_zero;
+    /* Content-length if give as non-zero, or zero */
 	size_t content_length;
+
+    /* Content-length given as zero */
+    bool content_length_zero;
+
+    /* Transfer-encoding: chunked */
+    bool chunked;
 
 	/* Write response content to FILE */
 	FILE *content_file;
@@ -100,6 +106,23 @@ int client_set_response_file (struct client *client, FILE *file)
 	client->response_file = file;
 
 	return 0;
+}
+
+int client_set_request_version (struct client *client, enum http_version version)
+{
+    switch (version) {
+        case HTTP_10:
+            client->request_http11 = false;
+            return 0;
+
+        case HTTP_11:
+            client->request_http11 = true;
+            return 0;
+
+        default:
+            log_error("unknown http_version: %d", version);
+            return -1;
+    }
 }
 
 int client_add_header (struct client *client, const char *name, const char *value)
@@ -261,6 +284,18 @@ int client_response_header (struct client *client, struct client_response *respo
         } else {
             log_debug("unknown Connection: %s", value);
         }
+    } else if (strcasecmp(header, "Transfer-Encoding") == 0) {
+        if (strcasecmp(value, "chunked") == 0) {
+            log_debug("chunked response");
+
+            response->chunked = true;
+
+        } else if (strcasecmp(value, "identity") == 0) {
+            response->chunked = false;
+
+        } else {
+            log_warning("unknown transfer-encoding: %s", value);
+        }
     }
 
 	return 0;
@@ -269,30 +304,38 @@ int client_response_header (struct client *client, struct client_response *respo
 /*
  * Read response body to file.
  */
-int client_response_file (struct client *client, struct client_response *response)
+int client_response_file (struct client *client, struct client_response *response, size_t content_length)
 {
     int fd;
     int err;
 
-	if (!response->content_file)
-        return 0;
+	if (response->content_file) {
+        // convert FILE* to fd
+        if (fflush(response->content_file)) {
+            log_perror("fflush");
+            return -1;
+        }
 
-    // XXX: convert 
-    if (fflush(response->content_file)) {
-        log_perror("fflush");
-        return -1;
+        if ((fd = fileno(response->content_file)) < 0) {
+            log_perror("fileno");
+            return -1;
+        }
+
+    } else {
+        // discard response body
+        fd = -1;
     }
 
-    if ((fd = fileno(response->content_file)) < 0) {
-        log_perror("fileno");
-        return -1;
+    if (response->chunked) {
+        // read in chunks
+        err = http_read_chunked_file(client->http, fd);
+
+    } else {
+        // content_length may either be 0 or determined earlier, when reading headers
+        err = http_read_file(client->http, fd, content_length);
     }
-    
-    // send; content_length may either be 0 or determined earlier, when reading headers
-    if ((err = http_read_file(client->http, fd, response->content_length)))
-		return err;
-    
-    return 0;
+
+    return err;
 }
 
 int client_response (struct client *client, struct client_request *request, struct client_response *response)
@@ -334,22 +377,34 @@ int client_response (struct client *client, struct client_request *request, stru
 		// more requests
 		err = 0;
 
+    } else if (response->chunked) {
+        log_debug("response-body chunked");
+
+        if ((err = client_response_file(client, response, 0)))
+            return err;
+
+        // more requests
+        err = 0;
+
 	} else if (response->content_length) {
-        if ((err = client_response_file(client, response)))
+        log_debug("response-body content-length=%zu", response->content_length);
+
+        if ((err = client_response_file(client, response, response->content_length)))
             return err;
 		
 		// more requests
 		err = 0;
 
 	} else if (response->content_length_zero) {
-        log_debug("explicit zero-length response body");
+        log_debug("response-body zero-length");
 
         // more requests
         err = 0;
 
     } else {
-		// to EOF
-        if ((err = client_response_file(client, response)))
+        log_debug("response-body eof");
+
+        if ((err = client_response_file(client, response, 0)))
             return err;
 
         // no more requests
@@ -378,7 +433,7 @@ static int client_request (struct client *client, struct client_request *request
     
     // request
     {
-        const char *version = "HTTP/1.0";
+        const char *version = client->request_http11 ? "HTTP/1.1" : "HTTP/1.0";
 
         // url parses these parts separately, so we must handle them separately..
         if (request->url->query && *request->url->query) {
