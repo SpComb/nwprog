@@ -58,6 +58,7 @@ int dns_query (struct dns *dns, const struct dns_header *header, const struct dn
 {
     struct dns_packet query = { };
     query.ptr = query.buf;
+    query.end = query.buf + sizeof(query.buf);
 
     // pack
     if (

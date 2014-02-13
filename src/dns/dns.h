@@ -4,11 +4,12 @@
 #include "../dns.h"
 
 #include <stdint.h>
+#include <stddef.h>
 
 struct dns_packet {
     char buf[DNS_PACKET];
 
-    char *ptr;
+    char *ptr, *end;
 };
 
 struct dns_header {
@@ -49,5 +50,8 @@ int dns_pack_header (struct dns_packet *pkt, const struct dns_header *header);
 int dns_pack_name (struct dns_packet *pkt, const char *name);
 int dns_pack_question (struct dns_packet *pkt, const struct dns_question *question);
 int dns_pack_record (struct dns_packet *pkt, const struct dns_record *rr);
+
+int dns_unpack_header (struct dns_packet *pkt, struct dns_header *header);
+int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size);
 
 #endif

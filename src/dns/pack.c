@@ -11,7 +11,7 @@ int dns_pack_u8 (struct dns_packet *pkt, uint8_t u8)
 
     pkt->ptr += sizeof(*out);
 
-    if (pkt->ptr > pkt->buf + sizeof(pkt->buf))
+    if (pkt->ptr > pkt->end)
         return 1;
 
     *out = u8;
@@ -25,7 +25,7 @@ int dns_pack_u16 (struct dns_packet *pkt, uint16_t u16)
 
     pkt->ptr += sizeof(*out);
 
-    if (pkt->ptr > pkt->buf + sizeof(pkt->buf))
+    if (pkt->ptr > pkt->end)
         return 1;
 
     *out = htons(u16);
@@ -39,7 +39,7 @@ int dns_pack_u32 (struct dns_packet *pkt, uint16_t u32)
 
     pkt->ptr += sizeof(*out);
 
-    if (pkt->ptr > pkt->buf + sizeof(pkt->buf))
+    if (pkt->ptr > pkt->end)
         return 1;
 
     *out = htonl(u32);
@@ -49,7 +49,7 @@ int dns_pack_u32 (struct dns_packet *pkt, uint16_t u32)
 
 int dns_pack_buf (struct dns_packet *pkt, const void *buf, size_t size)
 {
-    if (pkt->ptr + size > pkt->buf + sizeof(pkt->buf))
+    if (pkt->ptr + size > pkt->end)
         return 1;
 
     memcpy(pkt->ptr, buf, size);
@@ -70,7 +70,7 @@ int dns_pack_header (struct dns_packet *pkt, const struct dns_header *header)
                 |   header->tc      << 9
                 |   header->rd      << 8
                 |   header->ra      << 7
-                |   header->z       << 4
+                |   0               << 4
                 |   header->rcode   << 0
             ))
         ||  dns_pack_u16(pkt, header->qdcount)
