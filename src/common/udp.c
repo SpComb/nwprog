@@ -109,6 +109,8 @@ int udp_read (struct udp *udp, void *buf, size_t *sizep, const struct timeval *t
 {
     int err;
     
+    log_debug("%zu..", *sizep);
+    
     while ((err = sock_read(udp->sock, buf, sizep)) > 0 && udp->event) {
         if ((err = event_yield(udp->event, EVENT_READ, timeout)) < 0) {
             log_error("event_yield");
@@ -126,6 +128,8 @@ int udp_read (struct udp *udp, void *buf, size_t *sizep, const struct timeval *t
         return -1;
     }
 
+    log_debug("%zu", *sizep);
+
     return 0;
 }
 
@@ -139,6 +143,8 @@ int udp_write (struct udp *udp, void *buf, size_t size)
     }
     
     // we assume that write() will be atomically for SOCK_DGRAM.
+    log_debug("%zu", size);
+
     return 0;
 }
 

@@ -19,11 +19,11 @@ enum dns_opcode {
 };
 
 enum dns_rcode {
-    DNS_NOERR       = 0,
-    DNS_FMTERR      = 1,
+    DNS_NOERROR     = 0,
+    DNS_FMTERROR    = 1,
     DNS_SERVFAIL    = 2,
     DNS_NXDOMAIN    = 3,
-    DNS_NOIMPL      = 4,
+    DNS_NOTIMPL     = 4,
     DNS_REFUSED     = 5,
 };
 

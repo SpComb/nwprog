@@ -11,6 +11,39 @@ struct dns {
     struct udp *udp;
 };
 
+const char * dns_opcode_str (enum dns_opcode opcode)
+{
+    switch (opcode) {
+        case DNS_QUERY:         return "QUERY";
+        case DNS_IQUERY:        return "IQUERY";
+        case DNS_STATUS:        return "STATUS";
+        default:                return "?????";
+    }
+}
+
+const char * dns_rcode_str (enum dns_rcode rcode)
+{
+    switch (rcode) {
+        case DNS_NOERROR:       return "NOERROR";
+        case DNS_FMTERROR:      return "FMTERROR";
+        case DNS_SERVFAIL:      return "SERVFAIL";
+        case DNS_NXDOMAIN:      return "NXDOMAIN";
+        case DNS_NOTIMPL:       return "NOTIMPL";
+        case DNS_REFUSED:       return "REFUSED";
+        default:                return "????????";
+    }
+}
+
+const char * dns_class_str (enum dns_class class)
+{
+    switch (class) {
+        case DNS_IN:            return "IN";
+        case DNS_CH:            return "CH";
+
+        default:                return "??";
+    }
+}
+
 const char * dns_type_str (enum dns_type type)
 {
     switch (type) {
@@ -80,10 +113,77 @@ int dns_query (struct dns *dns, const struct dns_header *header, const struct dn
     return 0;
 }
 
+int dns_response (struct dns *dns)
+{
+    struct dns_packet response = { };
+    int err;
+
+    // recv
+    size_t size = sizeof(response.buf);
+
+    if ((err = udp_read(dns->udp, response.buf, &size, NULL))) {
+        log_warning("udp_read");
+        return -1;
+    }
+
+    response.ptr = response.buf;
+    response.end = response.buf + size;
+
+    // unpack
+    struct dns_header header;
+
+    if ((err = dns_unpack_header(&response, &header))) {
+        log_warning("dns_unpack_header");
+        return err;
+    }
+
+    log_info("%s%s%s%s%s%s %s",
+            header.qr       ? "QR " : "",
+            dns_opcode_str(header.opcode),
+            header.aa       ? " AA" : "",
+            header.tc       ? " TC" : "",
+            header.rd       ? " RD" : "",
+            header.ra       ? " RA" : "",
+            dns_rcode_str(header.rcode)
+    );
+
+    for (int i = 0; i < header.qdcount; i++) {
+        struct dns_question question;
+
+        if ((err = dns_unpack_question(&response, &question))) {
+            log_warning("dns_unpack_question: %d", i);
+            return err;
+        }
+        
+        log_info("QD: %s %s:%s", question.qname, 
+                dns_class_str(question.qclass),
+                dns_type_str(question.qtype)
+        );
+    }
+     
+    for (int i = 0; i < header.ancount; i++) {
+        struct dns_record rr;
+
+        if ((err = dns_unpack_record(&response, &rr))) {
+            log_warning("dns_unpack_resource: %d", i);
+            return err;
+        }
+
+        log_info("AN: %s %s:%s %d %d:...", rr.name,
+                dns_class_str(rr.class),
+                dns_type_str(rr.type),
+                rr.ttl,
+                rr.rdlength
+        );
+    }
+
+    return 0;
+}
+
 int dns_resolve (struct dns *dns, const char *name, enum dns_type type)
 {
     struct dns_header header = {
-        .qr         = 1,
+        .qr         = 0,
         .opcode     = DNS_QUERY,
         .rd         = 1,
         .qdcount    = 1,
@@ -106,7 +206,11 @@ int dns_resolve (struct dns *dns, const char *name, enum dns_type type)
         return err;
     }
 
-    // TODO: response
+    if ((err = dns_response(dns))) {
+        log_error("dns_response");
+        return err;
+    }
+
     return 0;
 }
 

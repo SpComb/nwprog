@@ -28,6 +28,8 @@ int dns_unpack_u8 (struct dns_packet *pkt, uint8_t *u8p)
 
     *u8p = *in;
 
+    log_debug("%u", *u8p);
+
     return 0;
 }
 
@@ -41,11 +43,13 @@ int dns_unpack_u16 (struct dns_packet *pkt, uint16_t *u16p)
         return 1;
 
     *u16p = ntohs(*in);
+    
+    log_debug("%u", *u16p);
 
     return 0;
 }
 
-int dns_unpack_u32 (struct dns_packet *pkt, uint16_t *u32p)
+int dns_unpack_u32 (struct dns_packet *pkt, uint32_t *u32p)
 {
     uint32_t *in = (uint32_t *) pkt->ptr;
 
@@ -55,6 +59,8 @@ int dns_unpack_u32 (struct dns_packet *pkt, uint16_t *u32p)
         return 1;
 
     *u32p = ntohl(*in);
+    
+    log_debug("%u", *u32p);
 
     return 0;
 }
@@ -67,6 +73,22 @@ int dns_unpack_buf (struct dns_packet *pkt, void *buf, size_t size)
     memcpy(buf, pkt->ptr, size);
 
     pkt->ptr += size;
+    
+    log_debug("#%zu", size);
+
+    return 0;
+}
+
+int dns_unpack_ptr (struct dns_packet *pkt, void **ptrp, size_t size)
+{
+    if (pkt->ptr + size > pkt->end)
+        return 1;
+
+    *ptrp = pkt->ptr;
+
+    pkt->ptr += size;
+    
+    log_debug("#%zu", size);
 
     return 0;
 }
@@ -143,7 +165,34 @@ int dns_unpack_name (struct dns_packet *pkt, char *buf, size_t size)
     if (err)
         return err;
 
+    uint8_t nul;
+
+    if (dns_unpack_u8(pkt, &nul))
+        return 1;
+
     *name = '\0';
 
     return 0;
 }
+
+int dns_unpack_question (struct dns_packet *pkt, struct dns_question *question)
+{
+    return (
+            dns_unpack_name(pkt, question->qname, sizeof(question->qname))
+        ||  dns_unpack_u16(pkt, &question->qtype)
+        ||  dns_unpack_u16(pkt, &question->qclass)
+    );
+}
+
+int dns_unpack_record (struct dns_packet *pkt, struct dns_record *rr)
+{
+    return (
+            dns_unpack_name(pkt, rr->name, sizeof(rr->name))
+        ||  dns_unpack_u16(pkt, &rr->type)
+        ||  dns_unpack_u16(pkt, &rr->class)
+        ||  dns_unpack_u32(pkt, &rr->ttl)
+        ||  dns_unpack_u16(pkt, &rr->rdlength)
+        ||  dns_unpack_ptr(pkt, &rr->rdatap, rr->rdlength)
+    );
+}
+
