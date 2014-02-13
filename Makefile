@@ -31,7 +31,7 @@ TEST_SRCS = $(wildcard test/*/*.c)
 
 BUILD_SSL = $(SSL:%=build/src/common/ssl.o)
 
-all: build bin/client bin/server
+all: build bin/client bin/server bin/dns
 
 test: bin/test-url bin/test-http
 	bin/test-url
@@ -56,6 +56,9 @@ bin/server: build/src/server.o \
 	build/src/common/url.o build/src/common/parse.o \
 	build/src/common/daemon.o \
 	build/src/common/util.o \
+	build/src/common/log.o
+
+bin/dns: build/src/dns.o \
 	build/src/common/log.o
 
 bin/test-url: \
