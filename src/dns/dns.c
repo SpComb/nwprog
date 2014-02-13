@@ -6,6 +6,7 @@
 #include "common/util.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 struct dns {
     struct udp *udp;
@@ -46,6 +47,8 @@ const char * dns_class_str (enum dns_class class)
 
 const char * dns_type_str (enum dns_type type)
 {
+    static char buf[32];
+
     switch (type) {
         case DNS_A:	            return "A";
         case DNS_NS:	        return "NS";
@@ -58,7 +61,9 @@ const char * dns_type_str (enum dns_type type)
         case DNS_QTYPE_AXFR:    return "AXFR";
         case DNS_QTYPE_ANY:	    return "ANY";
 
-        default:                return "???";
+        default:
+            snprintf(buf, sizeof(buf), "%d", type);
+            return buf;
     }
 }
 
