@@ -54,25 +54,50 @@ struct server_client {
 	struct http *http;
 
 	/* Request */
-	char request_method[HTTP_METHOD_MAX];
-	char request_pathbuf[HTTP_PATH_MAX];
-	char request_hostbuf[HTTP_HOST_MAX];
+    struct server_request {
+        /* Storage for request method field */
+        char method[HTTP_METHOD_MAX];
 
-    struct url request_url;
+        /* Storage for request path field */
+        char pathbuf[HTTP_PATH_MAX];
+
+        /* Storage for request Host header */
+        char hostbuf[HTTP_HOST_MAX];
+
+        /* Decoded request URL, including query */
+        struct url url;
+
+        /* Size of request entity, or zero */
+        size_t content_length;
+
+        /* Does the client support HTTP/1.1? */
+        bool http11;
+
+    } request;
 	
-	size_t request_content_length;
+	/* Response */
+    struct server_response {
+        /* The response status has been sent */
+        unsigned status;
 
-    bool request_http11;
-	
-	/* Sent */
-	unsigned status;
-	bool header;
-	bool headers;
-	bool body;
+        /* One or many response headers have been sent */
+        bool header;
 
-    bool response_chunked;
+        /* Response end-of-headers have been sent */
+        bool headers;
 
-	int err;
+        /* Response body has been started */
+        bool body;
+
+        /* Response entity body is being sent using chunked transfer encoding; must be ended */
+        bool chunked;
+
+        /* Close connection after response; may be determined by client or by response method */
+        bool close;
+
+    } response;
+
+    int err;
 };
 
 /* Idle timeout used for client reads; reset on every read operation */
@@ -184,48 +209,61 @@ error:
     return -1;
 }
 
+/*
+ * Read the client request line.
+ *
+ * Returns 0 on success, <0 on internal error, 1 on EOF, http 4xx on client error.
+ */
 int server_request (struct server_client *client)
 {
 	const char *method, *path, *version;
 	int err;
 
-	if ((err = http_read_request(client->http, &method, &path, &version))) {
+	if ((err = http_read_request(client->http, &method, &path, &version)) < 0) {
 		log_warning("http_read_request");
         return 400;
 	}
 
-	if (strlen(method) >= sizeof(client->request_method)) {
+    if (err) {
+        log_debug("eof");
+        return 1;
+    }
+
+	if (strlen(method) >= sizeof(client->request.method)) {
 		log_warning("method is too long: %zu", strlen(method));
 		return 400;
 	} else {
-		strncpy(client->request_method, method, sizeof(client->request_method));
+		strncpy(client->request.method, method, sizeof(client->request.method));
 	}
 
-	if (strlen(path) >= sizeof(client->request_pathbuf)) {
+	if (strlen(path) >= sizeof(client->request.pathbuf)) {
 		log_warning("path is too long: %zu", strlen(path));
 		return 400;
 	} else {
-		strncpy(client->request_pathbuf, path, sizeof(client->request_pathbuf));
+		strncpy(client->request.pathbuf, path, sizeof(client->request.pathbuf));
 	}
     
-    if ((err = url_parse(&client->request_url, client->request_pathbuf))) {
-        log_warning("url_parse: %s", client->request_pathbuf);
+    if ((err = url_parse(&client->request.url, client->request.pathbuf))) {
+        log_warning("url_parse: %s", client->request.pathbuf);
         return 400;
     }
 
-    if (client->request_url.scheme || client->request_url.host || client->request_url.port) {
+    if (client->request.url.scheme || client->request.url.host || client->request.url.port) {
         log_warning("request url includes extra parts: scheme=%s host=%s port=%s",
-                client->request_url.scheme, client->request_url.host, client->request_url.port);
+                client->request.url.scheme, client->request.url.host, client->request.url.port);
         return 400;
     }
 	
     log_info("%s %s %s", method, path, version);
 
     if (strcasecmp(version, "HTTP/1.0") == 0) {
-        client->request_http11 = false;
+        client->request.http11 = false;
+
+        // implicit Connection: close
+        client->response.close = true;
 
     } else if (strcasecmp(version, "HTTP/1.1") == 0) {
-        client->request_http11 = true;
+        client->request.http11 = true;
 
     } else {
         log_warning("unknown request version: %s", version);
@@ -243,29 +281,41 @@ int server_request_header (struct server_client *client, const char **namep, con
 		return err;
 	}
 
-	if (err)
+	if (err) {
+        log_warning("eof");
 		return 1;
+    }
 
 	log_info("\t%20s : %s", *namep, *valuep);
 
 	if (strcasecmp(*namep, "Content-Length") == 0) {
-		if (sscanf(*valuep, "%zu", &client->request_content_length) != 1) {
+		if (sscanf(*valuep, "%zu", &client->request.content_length) != 1) {
 			log_warning("invalid content_length: %s", *valuep);
 			return 400;
 		}
 
-		log_debug("content_length=%zu", client->request_content_length);
+		log_debug("content_length=%zu", client->request.content_length);
+
 	} else if (strcasecmp(*namep, "Host") == 0) {
-		if (strlen(*valuep) >= sizeof(client->request_hostbuf)) {
+		if (strlen(*valuep) >= sizeof(client->request.hostbuf)) {
 			log_warning("host is too long: %zu", strlen(*valuep));
 			return 400;
 		} else {
-			strncpy(client->request_hostbuf, *valuep, sizeof(client->request_hostbuf));
+			strncpy(client->request.hostbuf, *valuep, sizeof(client->request.hostbuf));
 		}
         
         // TODO: parse :port?
-        client->request_url.host = client->request_hostbuf;
-	}
+        client->request.url.host = client->request.hostbuf;
+
+	} else if (strcasecmp(*namep, "Connection") == 0) {
+        if (strcasecmp(*valuep, "close") == 0) {
+            log_debug("using connection-close");
+
+            client->response.close = true;
+        } else {
+            log_warning("unknown connection header: %s", *valuep);
+        }
+    }
 	
 	return 0;
 }
@@ -275,12 +325,12 @@ int server_request_file (struct server_client *client, int fd)
 	int err;
 
 	// TODO: Transfer-Encoding?
-	if (!client->request_content_length) {
+	if (!client->request.content_length) {
 		log_debug("no request body given");
 		return 411;
 	}
 		
-	if (((err = http_read_file(client->http, fd, client->request_content_length)))){
+	if (((err = http_read_file(client->http, fd, client->request.content_length)))){
 		log_warning("http_read_file");
 		return err;
 	}
@@ -292,16 +342,16 @@ int server_response (struct server_client *client, enum http_status status, cons
 {
     int err;
 
-	if (client->status) {
+	if (client->response.status) {
 		log_fatal("attempting to re-send status: %u", status);
 		return -1;
 	}
 
-    const char *version = client->request_http11 ? "HTTP/1.1" : "HTTP/1.0";
+    const char *version = client->request.http11 ? "HTTP/1.1" : "HTTP/1.0";
 
 	log_info("%s %u %s", version, status, reason);
 
-	client->status = status;
+	client->response.status = status;
 
 	if ((err = http_write_response(client->http, version, status, reason))) {
 		log_error("failed to write response line");
@@ -325,12 +375,12 @@ int server_response_header (struct server_client *client, const char *name, cons
 {
 	int err;
 
-	if (!client->status) {
+	if (!client->response.status) {
 		log_fatal("attempting to send headers without status: %s", name);
 		return -1;
 	}
 
-	if (client->headers) {
+	if (client->response.headers) {
 		log_fatal("attempting to re-send headers");
 		return -1;
 	}
@@ -339,7 +389,7 @@ int server_response_header (struct server_client *client, const char *name, cons
 
 	log_info("\t%20s : %s", name, fmt);
 
-	client->header = true;
+	client->response.header = true;
 
 	va_start(args, fmt);
 	err = http_write_headerv(client->http, name, fmt, args);
@@ -355,7 +405,7 @@ int server_response_header (struct server_client *client, const char *name, cons
 
 int server_response_headers (struct server_client *client)
 {
-	client->headers = true;
+	client->response.headers = true;
 
 	if (http_write_headers(client->http)) {
 		log_error("failed to write end-of-headers");
@@ -370,9 +420,15 @@ int server_response_file (struct server_client *client, int fd, size_t content_l
 	int err;
     
     if (content_length) {
+        log_debug("using content-length");
+
         if ((err = server_response_header(client, "Content-Length", "%zu", content_length)))
             return err;
     } else {
+        log_debug("using connection close");
+
+        client->response.close = true;
+
         if ((err = server_response_header(client, "Connection", "close")))
             return err;
     }
@@ -383,12 +439,12 @@ int server_response_file (struct server_client *client, int fd, size_t content_l
 	}
 
 	// body
-	if (client->body) {
+	if (client->response.body) {
 		log_fatal("attempting to re-send body");
 		return -1;
 	}
 
-	client->body = true;
+	client->response.body = true;
 
 	if (http_write_file(client->http, fd, content_length)) {
 		log_error("http_write_file");
@@ -403,22 +459,24 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 	va_list args;
 	int err = 0;
 
-	if (!client->status) {
+	if (!client->response.status) {
 		log_fatal("attempting to send response body without status");
 		return -1;
 	}
 
-	if (!client->headers) {
+	if (!client->response.headers) {
         // use chunked transfer-encoding for HTTP/1.1, and close connection for HTTP/1.0
-        if (client->request_http11) {
+        if (client->request.http11) {
             log_debug("using chunked transfer-encoding");
 
-            client->response_chunked = true;
+            client->response.chunked = true;
 
             err |= server_response_header(client, "Transfer-Encoding", "chunked");
             err |= server_response_headers(client);
         } else {
             log_debug("using connection close");
+
+            client->response.close = true;
 
             err |= server_response_header(client, "Connection", "close");
             err |= server_response_headers(client);
@@ -429,10 +487,10 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 		return err;
 	
 	// body
-	client->body = true;
+	client->response.body = true;
 
 	va_start(args, fmt);
-    if (client->response_chunked) {
+    if (client->response.chunked) {
         err = http_vprint_chunk(client->http, fmt, args);
     } else {
         err = http_vwrite(client->http, fmt, args);
@@ -467,7 +525,7 @@ int server_response_redirect (struct server_client *client, const char *host, co
 
 	// auto
 	if (!host) {
-		host = client->request_url.host;
+		host = client->request.url.host;
 	}
 
 	if ((
@@ -497,6 +555,11 @@ int server_response_error (struct server_client *client, enum http_status status
     return status;
 }
 
+/*
+ * Read, process and respond to one request.
+ *
+ * Return <0 on internal error, 0 on success with persistent connection, 1 on success with cconnection-close.
+ */
 int server_client_request (struct server *server, struct server_client *client)
 {
 	struct server_handler *handler = NULL;
@@ -504,19 +567,26 @@ int server_client_request (struct server *server, struct server_client *client)
 	int err;
 
 	// request
-	if ((err = server_request(client))) {
+	if ((err = server_request(client)) < 0) {
 		goto error;
-	}
+
+	} else if (err == 1) {
+        // EOF
+        return 1;
+
+    } else if (err) {
+        goto error;
+    } 
 
 	// handler 
-	if ((err = server_lookup_handler(server, client->request_method, client->request_url.path, &handler)) < 0) {
+	if ((err = server_lookup_handler(server, client->request.method, client->request.url.path, &handler)) < 0) {
 		goto error;
 
 	} else if (err) {
 		handler = NULL;
 
 	} else {
-		err = handler->request(handler, client, client->request_method, &client->request_url);
+		err = handler->request(handler, client, client->request.method, &client->request.url);
 	}
 
 error:	
@@ -527,7 +597,7 @@ error:
 	} else if (err > 0) {
 		status = err;
 
-	} else if (client->status) {
+	} else if (client->response.status) {
 		status = 0;
 
 	} else {
@@ -535,8 +605,8 @@ error:
 		status = 500;
 	}
 	
-	if (status && client->status) {
-		log_warning("status %u already sent, should be %u", client->status, status);
+	if (status && client->response.status) {
+		log_warning("status %u already sent, should be %u", client->response.status, status);
 
 	} else if (status) {
 		if (server_response_error(client, status, NULL)) {
@@ -546,7 +616,7 @@ error:
 	}
 	
 	// headers
-	if (!client->headers) {
+	if (!client->response.headers) {
 		if (server_response_headers(client)) {
 			log_warning("failed to end response headers");
 			err = -1;
@@ -554,7 +624,7 @@ error:
 	}
 
     // entity
-    if (client->response_chunked) {
+    if (client->response.chunked) {
         if ((err = http_write_chunks(client->http))) {
             log_warning("failed to end response chunks");
             err = -1;
@@ -562,13 +632,20 @@ error:
     }
 
 	// TODO: body on errors
+
+    // persistent connection?
+    if (client->response.close) {
+        return 1;
+
+    } else {
+        return 0;
+    }
+
 	return err;
 }
 
 /*
  * Handle one client.
- *
- * TODO: multiple requests
  */
 void server_client_task (void *ctx)
 {
@@ -579,9 +656,21 @@ void server_client_task (void *ctx)
     tcp_read_timeout(client->tcp, &SERVER_READ_TIMEOUT);
     tcp_write_timeout(client->tcp, &SERVER_WRITE_TIMEOUT);
 
-    if ((err = server_client_request(client->server, client)) < 0) {
-        log_warning("server_client_request");
-        goto error;
+    // handle multiple requests
+    while (true) {
+        // reset request/response state...
+        client->request = (struct server_request) { };
+        client->response = (struct server_response) { };
+
+        if ((err = server_client_request(client->server, client)) < 0) {
+            log_warning("server_client_request");
+            goto error;
+        }
+
+        if (err) {
+            log_debug("end of client requests");
+            break;
+        }
     }
 
 error:
