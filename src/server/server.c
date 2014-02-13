@@ -93,6 +93,10 @@ struct server_client {
         bool chunked;
 
         /* Close connection after response; may be determined by client or by response method */
+        /* TODO: Some HTTP/1.0 clients may send a Connection:keep-alive request header, whereupon
+         * it may be possible to have !request.http11 && !response.close, in which situation we should
+         * be returning a 'Connection: keep-alive' response header...
+         */ 
         bool close;
 
     } response;
@@ -298,6 +302,13 @@ int server_request_header (struct server_client *client, const char **namep, con
             log_debug("using connection-close");
 
             client->response.close = true;
+
+        } else if (strcasecmp(*valuep, "keep-alive") == 0) {
+            /* Used by some HTTP/1.1 clients, apparently to request persistent connections.. */
+            log_debug("explicitly not using connection-close");
+
+            client->response.close = false;
+
         } else {
             log_warning("unknown connection header: %s", *valuep);
         }
