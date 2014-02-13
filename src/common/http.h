@@ -59,8 +59,8 @@ int http_writef (struct http *http, const char *fmt, ...)
 /*
  * Send a HTTP request line.
  */
-int http_write_request (struct http *http, const char *method, const char *fmt, ...)
-	__attribute((format (printf, 3, 4)));
+int http_write_request (struct http *http, const char *version, const char *method, const char *fmt, ...)
+	__attribute((format (printf, 4, 5)));
 
 /*
  * Send a HTTP response line.

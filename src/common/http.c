@@ -14,9 +14,8 @@
 #include <string.h>
 
 struct http {
+    /* Stream IO */
     struct stream *read, *write;
-
-	const char *version;
 };
 
 const char * http_status_str (enum http_status status)
@@ -53,7 +52,6 @@ int http_create (struct http **httpp, struct stream *read, struct stream *write)
 
     http->read = read;
     http->write = write;
-	http->version = HTTP_VERSION;
 	
 	// ok
 	*httpp = http;
@@ -188,7 +186,7 @@ int http_parse_header (char *line, const char **headerp, const char **valuep)
 }
 
 /* Client request writing */
-int http_write_request (struct http *http, const char *method, const char *fmt, ...)
+int http_write_request (struct http *http, const char *version, const char *method, const char *fmt, ...)
 {
 	va_list args;
 	int err;
@@ -203,7 +201,7 @@ int http_write_request (struct http *http, const char *method, const char *fmt, 
 	if (err)
 		return err;
 
-	if ((err = http_writef(http, " %s\r\n", http->version)))
+	if ((err = http_writef(http, " %s\r\n", version)))
 		return err;
 
 	return 0;
