@@ -22,6 +22,10 @@ struct http;
 /* Maximum Host: header length */
 #define HTTP_HOST_MAX 256
 
+enum http_version {
+    HTTP_10         = 0,    // default
+    HTTP_11,
+};
 
 enum http_status {
 	HTTP_OK						= 200,
@@ -145,7 +149,10 @@ int http_read_raw (struct http *http, char *buf, size_t *lenp);
  */
 int http_read_file (struct http *http, int fd, size_t content_length);
 
-
+/*
+ * Read response body chunks into FILE, or discard if -1
+ */
+int http_read_chunked_file (struct http *http, int fd);
 
 
 

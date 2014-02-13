@@ -16,6 +16,8 @@
 struct http {
     /* Stream IO */
     struct stream *read, *write;
+
+    size_t chunk_size;
 };
 
 const char * http_status_str (enum http_status status)
@@ -516,6 +518,167 @@ int http_read_file (struct http *http, int fd, size_t content_length)
 		log_warning("premature EOF: %zu", content_length);
 		return 1;
 	}
+
+	return 0;
+}
+
+int http_read_chunk_header (struct http *http, size_t *sizep)
+{
+    char *line;
+    int err;
+
+    // chunk header
+    if ((err = http_read_line(http, &line)))
+        return err;
+
+    if (sscanf(line, "%zx", sizep) != 1) {
+        log_perror("sscanf: %s", line);
+        return -1;
+    }
+
+    if (!*sizep) {
+        log_debug("end-chunk");
+        return 1;
+    }
+
+    return 0;
+}
+
+int http_read_chunk_footer (struct http *http)
+{
+    char *line;
+    int err;
+
+    if ((err = http_read_line(http, &line))) {
+        log_warning("http_read_line");
+        return err;
+    }
+
+    if (*line) {
+        log_warning("trailing data after chunk");
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * Read in a chunked response.
+ *
+ * Note that this does not necessarily read in an entire chunk at a time, but will return partial chunks.
+ *
+ * Returns 0 on success with *sizep updated, 1 on end-of-chunks, -1 on error or invalid chunk.
+ */
+int http_read_chunked (struct http *http, char **bufp, size_t *sizep)
+{
+    int err;
+
+    // continue to next chunk if current one is consumed, or just starting
+    if (!http->chunk_size) {
+        if ((err = http_read_chunk_header(http, &http->chunk_size)))
+            return err;
+    }
+
+    // reading in at most chunk_size..
+    *sizep = http->chunk_size;
+
+    if ((err = stream_read(http->read, bufp, sizep)) < 0) {
+        log_warning("stream_read");
+        return err;
+
+    } else if (err) {
+        log_warning("eof");
+        return -1;
+    }
+
+    // mark how much of the chunk we have consumed
+    http->chunk_size -= *sizep;
+
+    if (http->chunk_size) {
+        // remaining chunk data
+        log_debug("%zu+%zu", *sizep, http->chunk_size);
+
+    } else {
+        // end of chunk
+        log_debug("%zu", *sizep);
+
+        if ((err = http_read_chunk_footer(http)))
+            return err;
+    }
+
+    return 0;
+}
+
+/*
+ * Read end-of-chunks trailer.
+ */
+int http_read_chunks (struct http *http)
+{
+    char *line;
+    int err;
+
+    while (!(err = http_read_line(http, &line))) {
+        if (!*line) {
+            // terminates on empty line
+            break;
+        }
+
+        // TODO: handle trailing headers as well?
+        log_warning("trailing header: %s", line);
+    }
+
+    return err;
+}
+
+int http_read_chunked_file (struct http *http, int fd)
+{
+    int err;
+
+    // continue until http_read_chunk_header returns 1 for the last chunk
+    while (http->chunk_size || !(err = http_read_chunk_header(http, &http->chunk_size))) {
+        // maximum size to read
+        size_t size = http->chunk_size;
+
+        if (fd >= 0) {
+            if ((err = stream_read_file(http->read, fd, &size)) < 0) {
+                log_warning("stream_read_file %zu", size);
+                return err;
+            }
+        } else {
+            char *ignore;
+
+            if ((err = stream_read(http->read, &ignore, &size)) < 0) {
+                log_warning("stream_read %zu", size);
+                return err;
+            }
+        }
+
+        // mark how much of the chunk we have consumed
+        http->chunk_size -= size;
+
+        if (http->chunk_size) {
+            // remaining chunk data
+            log_debug("%zu+%zu", size, http->chunk_size);
+
+        } else {
+            // end of chunk
+            log_debug("%zu", size);
+
+            if ((err = http_read_chunk_footer(http)))
+                return err;
+        }
+    }
+
+    if (err < 0) {
+        // EOF
+        log_warning("http_read_chunked");
+        return err;
+    }
+
+    if ((err = http_read_chunks(http))) {
+        log_warning("http_read_chunks");
+        return err;
+    }
 
 	return 0;
 }
