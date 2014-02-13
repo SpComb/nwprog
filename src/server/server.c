@@ -61,12 +61,16 @@ struct server_client {
     struct url request_url;
 	
 	size_t request_content_length;
+
+    bool request_http11;
 	
 	/* Sent */
 	unsigned status;
 	bool header;
 	bool headers;
 	bool body;
+
+    bool response_chunked;
 
 	int err;
 };
@@ -214,8 +218,18 @@ int server_request (struct server_client *client)
                 client->request_url.scheme, client->request_url.host, client->request_url.port);
         return 400;
     }
+	
+    log_info("%s %s %s", method, path, version);
 
-	log_info("%s %s %s", method, path, version);
+    if (strcasecmp(version, "HTTP/1.0") == 0) {
+        client->request_http11 = false;
+
+    } else if (strcasecmp(version, "HTTP/1.1") == 0) {
+        client->request_http11 = true;
+
+    } else {
+        log_warning("unknown request version: %s", version);
+    }
 
 	return 0;
 }
@@ -283,11 +297,13 @@ int server_response (struct server_client *client, enum http_status status, cons
 		return -1;
 	}
 
-	log_info("%u %s", status, reason);
+    const char *version = client->request_http11 ? "HTTP/1.1" : "HTTP/1.0";
+
+	log_info("%s %u %s", version, status, reason);
 
 	client->status = status;
 
-	if ((err = http_write_response(client->http, status, reason))) {
+	if ((err = http_write_response(client->http, version, status, reason))) {
 		log_error("failed to write response line");
 		return err;
 	}
@@ -393,8 +409,20 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 	}
 
 	if (!client->headers) {
-		err |= server_response_header(client, "Connection", "close");
-		err |= server_response_headers(client);
+        // use chunked transfer-encoding for HTTP/1.1, and close connection for HTTP/1.0
+        if (client->request_http11) {
+            log_debug("using chunked transfer-encoding");
+
+            client->response_chunked = true;
+
+            err |= server_response_header(client, "Transfer-Encoding", "chunked");
+            err |= server_response_headers(client);
+        } else {
+            log_debug("using connection close");
+
+            err |= server_response_header(client, "Connection", "close");
+            err |= server_response_headers(client);
+        }
 	}
 
 	if (err)
@@ -404,11 +432,15 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
 	client->body = true;
 
 	va_start(args, fmt);
-	err = http_vwrite(client->http, fmt, args);
+    if (client->response_chunked) {
+        err = http_vprint_chunk(client->http, fmt, args);
+    } else {
+        err = http_vwrite(client->http, fmt, args);
+    }
 	va_end(args);
 
 	if (err) {
-		log_warning("http_vwrite");
+		log_warning("http_write");
 		return err;
 	}
 
@@ -520,6 +552,14 @@ error:
 			err = -1;
 		}
 	}
+
+    // entity
+    if (client->response_chunked) {
+        if ((err = http_write_chunks(client->http))) {
+            log_warning("failed to end response chunks");
+            err = -1;
+        }
+    }
 
 	// TODO: body on errors
 	return err;
