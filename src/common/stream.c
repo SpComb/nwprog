@@ -157,6 +157,13 @@ int _stream_read (struct stream *stream)
     return 0;
 }
 
+/*
+ * Write directly from the given external buffer to the stream.
+ *
+ * Guaranteed to write the entire buffer contents on success.
+ *
+ * Returns 0 on success, 1 on EOF, <0 on error.
+ */
 int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
 {
     int err;
@@ -186,6 +193,13 @@ int _stream_write_direct (struct stream *stream, const char *buf, size_t size)
     return 0;
 }
 
+/*
+ * Write some data out from the stream.
+ *
+ * Guaranteed to always make some progress on success, but may not necessarily write out the entire buffer.
+ *
+ * Returns 0 on success, 1 on EOF, <0 on error.
+ */
 int _stream_write (struct stream *stream)
 {
     size_t size = stream_writebuf_size(stream);
@@ -338,6 +352,8 @@ int stream_read_file (struct stream *stream, int fd, size_t *sizep)
 
 /*
  * Flush any pending writes.
+ *
+ * On success, the write buffer will be empty.
  */
 int stream_flush (struct stream *stream)
 {

@@ -73,7 +73,14 @@ int stream_read_line (struct stream *stream, char **linep);
  */
 int stream_read_file (struct stream *stream, int fd, size_t *sizep);
 
+/*
+ * Write out the full contents of the given buffer to the stream.
+ */
 int stream_write (struct stream *stream, const char *buf, size_t size);
+
+/*
+ * Write arbitrary formatted output to the stream.
+ */
 int stream_vprintf (struct stream *stream, const char *fmt, va_list args);
 int stream_printf (struct stream *stream, const char *fmt, ...);
 
