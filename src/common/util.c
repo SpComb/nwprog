@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 const char *strdump (const char *str)
 {
@@ -40,4 +41,14 @@ const char *strdump (const char *str)
 	}
 	
 	return buf;
+}
+
+int str_copy (char *buf, size_t size, const char *str)
+{
+    if (strlen(str) >= size)
+        return 1;
+
+    memcpy(buf, str, strlen(str));
+
+    return 0;
 }
