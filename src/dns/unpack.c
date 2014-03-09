@@ -96,21 +96,24 @@ int dns_unpack_ptr (struct dns_packet *pkt, void **ptrp, size_t size)
 int dns_unpack_header (struct dns_packet *pkt, struct dns_header *header)
 {
     uint16_t flags;
+    int err;
 
-    return (
+    if ((err = (
             dns_unpack_u16(pkt, &header->id)
         ||  dns_unpack_u16(pkt, &flags)
         ||  dns_unpack_u16(pkt, &header->qdcount)
         ||  dns_unpack_u16(pkt, &header->ancount)
         ||  dns_unpack_u16(pkt, &header->nscount)
         ||  dns_unpack_u16(pkt, &header->arcount)
-    );
+    )))
+        return err;
 
     header->qr      = flags >> 15 & 0x1;
     header->opcode  = flags >> 11 & 0xf;
     header->aa      = flags >> 10 & 0x1;
     header->tc      = flags >> 9  & 0x1;
     header->rd      = flags >> 8  & 0x1;
+    header->ra      = flags >> 7  & 0x1;
     header->rcode   = flags >> 0  & 0xf;
 
     return 0;
