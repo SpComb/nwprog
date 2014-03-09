@@ -45,13 +45,24 @@ void help (const char *argv0) {
 }
 
 int dns (const struct options *options, const char *arg) {
+    struct dns_resolve *resolve;
     int err;
 
     log_info("%s", arg);
 
-    if ((err = dns_resolve(options->dns, arg, DNS_A))) {
+    if ((err = dns_resolve(options->dns, &resolve, arg, DNS_A))) {
         log_fatal("dns_resolve: %s", arg);
         return 1;
+    }
+
+    // print out answers
+    enum dns_section section;
+    struct dns_record rr;
+    union dns_rdata rdata;
+
+    while (!(err = dns_resolve_record(resolve, &section, &rr, &rdata))) {
+        if (section != DNS_AN)
+            continue;
     }
 
     return 0;
@@ -72,7 +83,7 @@ int main (int argc, char **argv)
 			case 'h':
 				help(argv[0]);
 				return 0;
-			
+
 			case 'q':
 				log_level = LOG_ERROR;
 				break;
