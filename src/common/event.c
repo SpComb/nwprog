@@ -13,18 +13,43 @@
 #endif // VALGRIND
 
 struct event_main {
+    // currently executing task, maintained by event_switch()
+    // NULL when in main() -> event_main()
     struct event_task *task;
 
+    /*
+     * The set of existing events, which event_main() will operate.
+     *
+     * event_main() will exit once there are no more events left, or none of the
+     * events have any tasks associated.
+     */
     TAILQ_HEAD(event_main_events, event) events;
 };
 
 struct event {
     struct event_main *event_main;
     
+    // fixed state
     int fd;
+
+    /*
+     * The flags will be set to nonzero by event_yield() once some task is pending on this event.
+     *
+     * The flags will be zero when there is no task pending on this event.
+     */
     int flags;
+
+    /*
+     * Absolute timeout value for this task, valid when flags & EVENT_TIMEOUT.
+     */
     struct timeval timeout;
 
+    /*
+     * The task that has yielded on this event.
+     * Only one task may be yielding on an event at any time!
+     *
+     * event_main() will then switch into this task.
+     */
     struct event_task *task;
 
     TAILQ_ENTRY(event) event_main_events;
@@ -33,12 +58,26 @@ struct event {
 struct event_task {
     struct event_main *event_main;
 
+    // debug info
     const char *name;
+
+    // event_start() execution info
     event_task_func *func;
     void *ctx;
 
+    /*
+     * This task is event_wait()'ing on some given event.
+     */
+    struct event *wait;
+
+    /*
+     * Set within the task once func() returns.
+     *
+     * Used by event_switch() to clean up the task once it has returned.
+     */
     bool exit;
 
+    // low-level libpcl state
     coroutine_t co;
     void *co_stack;
 
@@ -82,30 +121,42 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd)
     return 0;
 }
 
-void event_switch (struct event_main *event_main, struct event_task *task)
+/*
+ * This function is responsible for going further down into the task stack, and maintaining the
+ * event_main->task state.
+ *
+ * No other function may use co_call(), and no task may event_switch() into a task that it has been
+ * event_switch()'d into from.
+ *
+ * This function is also resposible for cleaning up after tasks that have exited.
+ */
+static void event_switch (struct event_main *event_main, struct event_task *task)
 {
-    struct event_task *main = event_main->task;
-    const char *name = main ? main->name : "*";
+    struct event_task *main_task = event_main->task;
+    const char *main_name = main_task ? main_task->name : "*";
 
-    log_debug("%s[%p] -> %s[%p]", name, main, task->name, task);
+    log_debug("%s[%p] -> %s[%p]", main_name, main_task, task->name, task);
 
     event_main->task = task;
 
     co_call(task->co);
 
     if (task->exit) {
-        log_debug("%s[%p] <- %s[%p]: exit %d", name, main, task->name, task, task->exit);
+        log_debug("%s[%p] <- %s[%p]: exit %d", main_name, main_task, task->name, task, task->exit);
 
         free(task->co_stack);
         free(task);
     } else {
-        log_debug("%s[%p] <- %s[%p]", name, main, task->name, task);
+        log_debug("%s[%p] <- %s[%p]", main_name, main_task, task->name, task);
     }
 
-    event_main->task = main;
+    event_main->task = main_task;
 }
 
-static void _event_main (void *ctx)
+/*
+ * Wrapper around the task main function to take care of cleanup.
+ */
+static void event_task (void *ctx)
 {
     struct event_task *task = ctx;
 
@@ -138,7 +189,7 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
     task->func = func;
     task->ctx = ctx;
 
-    if (!(task->co = co_create(_event_main, task, task->co_stack, EVENT_TASK_SIZE))) {
+    if (!(task->co = co_create(event_task, task, task->co_stack, EVENT_TASK_SIZE))) {
         log_perror("co_create");
         goto error;
     }
@@ -152,9 +203,11 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
     );
 #endif
 
-    log_debug("%s[%p]", task->name, task);
+    log_debug("-> %s[%p]", task->name, task);
 
     event_switch(event_main, task);
+
+    log_debug("<- %s[%p]", task->name, task);
 
     return 0;
 
@@ -183,7 +236,7 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
     }
 
     if (event->task) {
-        log_fatal("%d overriding %s with %s", event->fd, event->task->name, task->name);
+        log_fatal("Task %s[%p] attempted to override event:%d task %s[%p]", task->name, task, event->fd, event->task->name, event->task);
         return -1;
     }
     
@@ -230,20 +283,41 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         return 0;
 }
 
-int event_wait (struct event *event, struct event_task **taskp)
+int event_wait (struct event *event, struct event_task **waitp)
 {
     struct event_task *task = event->event_main->task;
 
     if (!task) {
-        log_fatal("%d yielding without task; main() should be in event_main() now...", event->fd);
+        log_fatal("the main task is attempt to wait on event:%d; main() should be in event_main() now...", event->fd);
         return -1;
     }
 
-    *taskp = task;
+    if (task->wait) {
+        log_fatal("%s[%p] is already waiting on event:%d", task->name, task, task->wait->fd);
+        return -1;
+    }
+
+    if (*waitp) {
+        log_fatal("%s[%p] set to wait into %p which is already set to %p!", task->name, task, waitp, *waitp);
+        return -1;
+    }
+
+    *waitp = task;
+    task->wait = event;
 
     log_debug("<- %s[%p]", task->name, task);
 
     co_resume();
+
+    if (*waitp) {
+        log_warning("%s[%p] woke up from wait with still the notify-pointer still set to %p!", task->name, task, *waitp);
+    }
+
+    if (task->wait != event) {
+        log_warning("%s[%p] woke up from wait with its wait-event changed from %p to %p!", task->name, task, event, task->wait);
+    }
+
+    task->wait = NULL;
 
     log_debug("-> %s[%p]", task->name, task);
 
@@ -255,8 +329,13 @@ int event_notify (struct event *event, struct event_task **notifyp)
     struct event_task *task = event->event_main->task;
     struct event_task *notify = *notifyp;
 
+    if (task->wait) {
+        log_fatal("%s[%p] notifying while waiting on event[%p]!?", task->name, task, task->wait);
+        return -1;
+    }
+
     if (!notify) {
-        log_fatal("[%p] notifying invalid wait", task);
+        log_fatal("%s[%p] notifying invalid wait", task->name, task);
         return -1;
     }
 
@@ -268,7 +347,6 @@ int event_notify (struct event *event, struct event_task **notifyp)
     // mark notify target as notified
     *notifyp = NULL;
 
-    // expecting co_resume() from event_yield()... to return here..
     event_switch(event->event_main, notify);
 
     log_debug("%s[%p] <- %s[%p]",
