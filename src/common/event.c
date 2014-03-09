@@ -84,23 +84,25 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd)
 
 void event_switch (struct event_main *event_main, struct event_task *task)
 {
-    struct event_task *main_task = event_main->task;
-    const char *main_task_name = main_task ? main_task->name : "*";
+    struct event_task *main = event_main->task;
+    const char *name = main ? main->name : "*";
 
-    log_debug("%s -> %s", main_task_name, task->name);
+    log_debug("%s[%p] -> %s[%p]", name, main, task->name, task);
 
     event_main->task = task;
+
     co_call(task->co);
-    event_main->task = main_task;
 
     if (task->exit) {
-        log_debug("%s <- %s: exit %d", main_task_name, task->name, task->exit);
+        log_debug("%s[%p] <- %s[%p]: exit %d", name, main, task->name, task, task->exit);
 
         free(task->co_stack);
         free(task);
     } else {
-        log_debug("%s <- %s", main_task_name, task->name);
+        log_debug("%s[%p] <- %s[%p]", name, main, task->name, task);
     }
+
+    event_main->task = main;
 }
 
 static void _event_main (void *ctx)
@@ -111,6 +113,10 @@ static void _event_main (void *ctx)
 
     // exit
     task->exit = 1;
+
+    log_debug("%s[%p] exit", task->name, task);
+
+    // XXX: implicit co_resume()?
 }
 
 int _event_start (struct event_main *event_main, const char *name, event_task_func *func, void *ctx)
@@ -146,6 +152,8 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
     );
 #endif
 
+    log_debug("%s[%p]", task->name, task);
+
     event_switch(event_main, task);
 
     return 0;
@@ -157,12 +165,26 @@ error:
     return -1;
 }
 
+int event_pending (struct event *event)
+{
+    if (event->task)
+        return 1;
+
+    return 0;
+}
+
 int event_yield (struct event *event, int flags, const struct timeval *timeout)
 {
     struct event_task *task = event->event_main->task;
 
+    if (!task) {
+        log_fatal("%d yielding without task; main() should be in event_main() now...", event->fd);
+        return -1;
+    }
+
     if (event->task) {
         log_fatal("%d overriding %s with %s", event->fd, event->task->name, task->name);
+        return -1;
     }
     
     event->task = task;
@@ -181,11 +203,19 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         event->timeout.tv_usec += timeout->tv_usec;
     }
 
-    log_debug("<- %s:%d (%x)", task->name, event->fd, event->flags);
+    log_debug("<- %s[%p] %d(%s%s%s)", task->name, task, event->fd,
+            event->flags & EVENT_READ ? "R" : "",
+            event->flags & EVENT_WRITE ? "W" : "",
+            event->flags & EVENT_TIMEOUT ? "T" : ""
+    );
 
     co_resume();
 
-    log_debug("-> %s:%d (%x)", task->name, event->fd, event->flags);
+    log_debug("-> %s[%p] %d(%s%s%s)", task->name, task, event->fd,
+            event->flags & EVENT_READ ? "R" : "",
+            event->flags & EVENT_WRITE ? "W" : "",
+            event->flags & EVENT_TIMEOUT ? "T" : ""
+    );
     
     // read event state
     flags = event->flags;
@@ -198,6 +228,55 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         return 1;
     else 
         return 0;
+}
+
+int event_wait (struct event *event, struct event_task **taskp)
+{
+    struct event_task *task = event->event_main->task;
+
+    if (!task) {
+        log_fatal("%d yielding without task; main() should be in event_main() now...", event->fd);
+        return -1;
+    }
+
+    *taskp = task;
+
+    log_debug("<- %s[%p]", task->name, task);
+
+    co_resume();
+
+    log_debug("-> %s[%p]", task->name, task);
+
+    return 0;
+}
+
+int event_notify (struct event *event, struct event_task **notifyp)
+{
+    struct event_task *task = event->event_main->task;
+    struct event_task *notify = *notifyp;
+
+    if (!notify) {
+        log_fatal("[%p] notifying invalid wait", task);
+        return -1;
+    }
+
+    log_debug("%s[%p] -> %s[%p]",
+            task->name, task,
+            notify->name, notify
+    );
+
+    // mark notify target as notified
+    *notifyp = NULL;
+
+    // expecting co_resume() from event_yield()... to return here..
+    event_switch(event->event_main, notify);
+
+    log_debug("%s[%p] <- %s[%p]",
+            task->name, task,
+            notify->name, notify
+    );
+
+    return 0;
 }
 
 void event_destroy (struct event *event)
@@ -237,12 +316,13 @@ int event_main_run (struct event_main *event_main)
                 }
             }
 
-            if (event->fd >= nfds)
+            // mark as active event
+            if (event->flags && event->fd >= nfds)
                 nfds = event->fd + 1;
         }
 
         if (!nfds) {
-            log_info("nothing to do");
+            log_info("exit");
             return 0;
         }
 
