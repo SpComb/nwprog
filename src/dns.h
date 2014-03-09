@@ -139,6 +139,11 @@ struct dns_resolve;
 int dns_create (struct event_main *event_main, struct dns **dnsp, const char *resolver);
 
 /*
+ * Perform a DNS lookup, without waiting for a response.
+ */
+int dns_resolve_async (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type);
+
+/*
  * Perform a DNS lookup, returning the response in *resolvep.
  *
  * Returns <0 on internal error, DNS_NOERROR, dns_rcode >0 on resolve error.
