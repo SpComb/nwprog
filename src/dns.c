@@ -1,4 +1,5 @@
 #include "dns/dns.h"
+#include "common/event.h"
 #include "common/log.h"
 #include "common/util.h"
 
@@ -28,6 +29,12 @@ static const struct option long_options[] = {
 	{ }
 };
 
+struct dns_task {
+    const struct options *options;
+
+    const char *arg;
+};
+
 void help (const char *argv0) {
 	printf(
 			"Usage: %s [options] ...\n"
@@ -46,7 +53,12 @@ void help (const char *argv0) {
 	, argv0, argv0);
 }
 
-int dns (const struct options *options, const char *arg) {
+void dns (void *ctx)
+{
+    struct dns_task *task = ctx;
+    const struct options *options = task->options;
+    const char *arg = task->arg;
+
     struct dns_resolve *resolve;
     int err;
 
@@ -111,6 +123,7 @@ int main (int argc, char **argv)
 	enum log_level log_level = LOG_LEVEL;
 	int err = 0;
 
+    struct event_main *event_main;
     struct options options = {
         .resolver   = "localhost",
     };
@@ -146,14 +159,36 @@ int main (int argc, char **argv)
 	// apply
 	log_set_level(log_level);
 
-    if ((err = dns_create(NULL, &options.dns, options.resolver))) {
+    if ((err = event_main_create(&event_main))) {
+        log_fatal("event_main_create");
+        goto error;
+    }
+
+    if ((err = dns_create(event_main, &options.dns, options.resolver))) {
         log_fatal("dns_create: %s", options.resolver);
-        return 1;
+        goto error;
     }
 
 	while (optind < argc && !err) {
-		err = dns(&options, argv[optind++]);
+        struct dns_task task = {
+            .options    = &options,
+            .arg        = argv[optind++],
+        };
+
+        // start async task
+        if ((err = event_start(event_main, dns, &task))) {
+            log_fatal("event_start: %s", task.arg);
+        }
 	}
+
+    // mainloop
+    if ((err = event_main_run(event_main))) {
+        log_fatal("event_main");
+    }
+
+error:
+    if (options.dns)
+        dns_destroy(options.dns);
 
 	return err;
 }
