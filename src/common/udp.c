@@ -148,6 +148,11 @@ int udp_write (struct udp *udp, void *buf, size_t size)
     return 0;
 }
 
+struct event * udp_event (struct udp *udp)
+{
+    return udp->event;
+}
+
 void udp_destroy (struct udp *udp)
 {
     if (close(udp->sock))

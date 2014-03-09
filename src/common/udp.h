@@ -25,6 +25,13 @@ int udp_read (struct udp *udp, void *buf, size_t *sizep, const struct timeval *t
 int udp_write (struct udp *udp, void *buf, size_t size);
 
 /*
+ * The internal event used by the UDP socket.
+ *
+ * May be NULL if created without event_main.
+ */
+struct event * udp_event (struct udp *udp);
+
+/*
  * Release all assocated resources.
  */
 void udp_destroy (struct udp *udp);
