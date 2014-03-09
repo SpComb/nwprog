@@ -45,10 +45,14 @@ const char *strdump (const char *str)
 
 int str_copy (char *buf, size_t size, const char *str)
 {
-    if (strlen(str) >= size)
+    size_t len = strlen(str);
+
+    if (len >= size)
         return 1;
 
-    memcpy(buf, str, strlen(str));
+    memcpy(buf, str, len);
+
+    buf[len] = '\0';
 
     return 0;
 }
