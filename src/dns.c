@@ -1,6 +1,7 @@
 #include "dns/dns.h"
 #include "common/log.h"
 
+#include <arpa/inet.h>
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -50,19 +51,39 @@ int dns (const struct options *options, const char *arg) {
 
     log_info("%s", arg);
 
-    if ((err = dns_resolve(options->dns, &resolve, arg, DNS_A))) {
-        log_fatal("dns_resolve: %s", arg);
-        return 1;
-    }
+    // query
+    enum dns_type types[] = { DNS_A, DNS_AAAA, DNS_MX, 0 };
 
-    // print out answers
-    enum dns_section section;
-    struct dns_record rr;
-    union dns_rdata rdata;
+    for (enum dns_type *type = types; *type; type++) {
+        if ((err = dns_resolve(options->dns, &resolve, arg, *type))) {
+            log_fatal("dns_resolve: %s", arg);
+            return 1;
+        }
 
-    while (!(err = dns_resolve_record(resolve, &section, &rr, &rdata))) {
-        if (section != DNS_AN)
-            continue;
+        // response
+        enum dns_section section;
+        struct dns_record rr;
+        union dns_rdata rdata;
+
+        while (!(err = dns_resolve_record(resolve, &section, &rr, &rdata))) {
+            char buf[INET6_ADDRSTRLEN];
+
+            if (rr.type == DNS_A) {
+                inet_ntop(AF_INET, &rdata.A, buf, sizeof(buf));
+            } else if (rr.type == DNS_AAAA) {
+                inet_ntop(AF_INET6, &rdata.AAAA, buf, sizeof(buf));
+            } else {
+                buf[0] = '\0';
+            }
+
+            if (section == DNS_AN && rr.type == DNS_A) {
+                printf("%s has address %s\n", rr.name, buf);
+            } else if (section == DNS_AN && rr.type == DNS_AAAA) {
+                printf("%s has IPv6 address %s\n", rr.name, buf);
+            } else if (section == DNS_AN && rr.type == DNS_MX) {
+                printf("%s mail is handled by %u %s\n", rr.name, rdata.MX.preference, rdata.MX.exchange);
+            }
+        }
     }
 
     return 0;
