@@ -1,5 +1,6 @@
 #include "dns/dns.h"
 #include "common/log.h"
+#include "common/util.h"
 
 #include <arpa/inet.h>
 #include <getopt.h>
@@ -53,9 +54,15 @@ int dns (const struct options *options, const char *arg) {
 
     // query
     enum dns_type types[] = { DNS_A, DNS_AAAA, DNS_MX, 0 };
+    char name[DNS_NAME];
+
+    if (str_copy(name, sizeof(name), arg)) {
+        log_warning("name overflow: %s", name);
+        return 1;
+    }
 
     for (enum dns_type *type = types; *type; type++) {
-        if ((err = dns_resolve(options->dns, &resolve, arg, *type))) {
+        if ((err = dns_resolve(options->dns, &resolve, name, *type))) {
             log_fatal("dns_resolve: %s", arg);
             return 1;
         }
@@ -76,7 +83,16 @@ int dns (const struct options *options, const char *arg) {
                 buf[0] = '\0';
             }
 
-            if (section == DNS_AN && rr.type == DNS_A) {
+            if (section == DNS_AN && rr.type == DNS_CNAME) {
+                printf("%s is an alias for %s\n", rr.name, rdata.CNAME);
+
+                // fix further queries
+                if (str_copy(name, sizeof(name), rdata.CNAME)) {
+                    log_warning("cname overflow: %s", rdata.CNAME);
+                    return 1;
+            }
+
+            } else if (section == DNS_AN && rr.type == DNS_A) {
                 printf("%s has address %s\n", rr.name, buf);
             } else if (section == DNS_AN && rr.type == DNS_AAAA) {
                 printf("%s has IPv6 address %s\n", rr.name, buf);
