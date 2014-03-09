@@ -99,13 +99,30 @@ int dns_query (struct dns *dns, const struct dns_header *header, const struct dn
     query.end = query.buf + sizeof(query.buf);
 
     // pack
-    if (
-            dns_pack_header(&query, header)
-        ||  dns_pack_question(&query, question)
-    ) {
+    if (dns_pack_header(&query, header)) {
+        log_warning("query header overflow");
+        return 1;
+    }
+
+    log_info("%s%s%s%s%s%s %s",
+            header->qr       ? "QR " : "",
+            dns_opcode_str(header->opcode),
+            header->aa       ? " AA" : "",
+            header->tc       ? " TC" : "",
+            header->rd       ? " RD" : "",
+            header->ra       ? " RA" : "",
+            dns_rcode_str(header->rcode)
+    );
+
+    if (dns_pack_question(&query, question)) {
         log_warning("query overflow");
         return 1;
     }
+
+    log_info("QD: %s %s:%s", question->qname,
+            dns_class_str(question->qclass),
+            dns_type_str(question->qtype)
+    );
 
     // send
     size_t size = (query.ptr - query.buf);
