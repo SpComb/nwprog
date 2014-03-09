@@ -3,6 +3,7 @@
 
 #include "common/event.h"
 
+#include <netinet/in.h>
 #include <stdint.h>
 
 /* UDP service */
@@ -34,6 +35,7 @@ enum dns_rcode {
 };
 
 enum dns_type {
+    // RFC 1035
     DNS_A           = 1,
     DNS_NS          = 2,
     DNS_CNAME       = 5,
@@ -41,6 +43,9 @@ enum dns_type {
     DNS_PTR         = 12,
     DNS_MX          = 15,
     DNS_TXT         = 16,
+
+    // RFC 3596
+    DNS_AAAA        = 28,
 
     DNS_QTYPE_AXFR  = 252,
     DNS_QTYPE_ANY   = 255,
@@ -107,7 +112,8 @@ struct dns_record {
  * Decoded response record data.
  */
 union dns_rdata {
-    uint32_t    A;
+    struct in_addr  A;
+    struct in6_addr AAAA;
     char        NS[DNS_NAME];
     char        CNAME[DNS_NAME];
     char        PTR[DNS_NAME];
@@ -138,6 +144,13 @@ int dns_create (struct event_main *event_main, struct dns **dnsp, const char *re
  * Returns <0 on internal error, DNS_NOERROR, dns_rcode >0 on resolve error.
  */
 int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type);
+
+/*
+ * Perform a DNS lookup with multiple queries for different types of the same name.
+ * 
+ * XXX: not really supported by anything.
+ */
+int dns_resolve_multi (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type *types);
 
 /*
  * Read out the reponse.

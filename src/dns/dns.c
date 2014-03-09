@@ -5,6 +5,7 @@
 #include "common/udp.h"
 #include "common/util.h"
 
+#include <arpa/inet.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -15,12 +16,13 @@ struct dns {
 struct dns_resolve {
     struct dns *dns;
 
+    // used for both query and response
+    struct dns_packet packet;
+
     // query
     struct dns_header query_header;
-    struct dns_question query_question;
 
     // response
-    struct dns_packet response;
     struct dns_header response_header;
 
     // count number of read records
@@ -119,14 +121,13 @@ error:
     return -1;
 }
 
-int dns_query (struct dns *dns, const struct dns_header *header, const struct dns_question *question)
+int dns_query (struct dns *dns, struct dns_packet *packet, const struct dns_header *header)
 {
-    struct dns_packet query = { };
-    query.ptr = query.buf;
-    query.end = query.buf + sizeof(query.buf);
+    packet->end = packet->ptr;
+    packet->ptr = packet->buf;
 
-    // pack
-    if (dns_pack_header(&query, header)) {
+    // re-pack header
+    if (dns_pack_header(packet, header)) {
         log_warning("query header overflow");
         return 1;
     }
@@ -141,19 +142,9 @@ int dns_query (struct dns *dns, const struct dns_header *header, const struct dn
             dns_rcode_str(header->rcode)
     );
 
-    if (dns_pack_question(&query, question)) {
-        log_warning("query overflow");
-        return 1;
-    }
-
-    log_info("QD: %s %s:%s", question->qname,
-            dns_class_str(question->qclass),
-            dns_type_str(question->qtype)
-    );
-
     // send
-    size_t size = (query.ptr - query.buf);
-    if (udp_write(dns->udp, query.buf, size)) {
+    size_t size = (packet->end - packet->buf);
+    if (udp_write(dns->udp, packet->buf, size)) {
         log_warning("udp_write: %zu", size);
         return -1;
     }
@@ -162,24 +153,24 @@ int dns_query (struct dns *dns, const struct dns_header *header, const struct dn
     return 0;
 }
 
-int dns_response (struct dns *dns, struct dns_packet *response, struct dns_header *header)
+int dns_response (struct dns *dns, struct dns_packet *packet, struct dns_header *header)
 {
     int err;
 
     // recv
-    size_t size = sizeof(response->buf);
+    size_t size = sizeof(packet->buf);
 
     // TODO: timeout
-    if ((err = udp_read(dns->udp, response->buf, &size, NULL))) {
+    if ((err = udp_read(dns->udp, packet->buf, &size, NULL))) {
         log_warning("udp_read");
         return -1;
     }
 
-    response->ptr = response->buf;
-    response->end = response->buf + size;
+    packet->ptr = packet->buf;
+    packet->end = packet->buf + size;
 
     // header
-    if ((err = dns_unpack_header(response, header))) {
+    if ((err = dns_unpack_header(packet, header))) {
         log_warning("dns_unpack_header");
         return err;
     }
@@ -197,12 +188,9 @@ int dns_response (struct dns *dns, struct dns_packet *response, struct dns_heade
     return 0;
 }
 
-int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type)
+int dns_resolve_create (struct dns *dns, struct dns_resolve **resolvep)
 {
     struct dns_resolve *resolve;
-    int err;
-
-    log_info("%s %s?", name, dns_type_str(type));
 
     // create state
     if (!(resolve = calloc(1, sizeof(*resolve)))) {
@@ -212,31 +200,113 @@ int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *nam
 
     resolve->dns = dns;
 
-    // build query
+    // start packing out query
+    resolve->packet.ptr = resolve->packet.buf;
+    resolve->packet.end = resolve->packet.buf + sizeof(resolve->packet.buf);
+
+    // pack initial header
     resolve->query_header = (struct dns_header) {
         .qr         = 0,
         .opcode     = DNS_QUERY,
         .rd         = 1,
-        .qdcount    = 1,
+        .qdcount    = 0, // placeholder, updated on sending
     };
-    resolve->query_question = (struct dns_question) {
+
+    if (dns_pack_header(&resolve->packet, &resolve->query_header)) {
+        log_warning("query header overflow");
+        return 1;
+    }
+
+    // ok
+    *resolvep = resolve;
+
+    return 0;
+}
+
+int dns_resolve_query (struct dns_resolve *resolve, const char *name, enum dns_type type)
+{
+    struct dns_question question = {
         .qtype      = type,
         .qclass     = DNS_IN,
     };
 
-    if (str_copy(resolve->query_question.qname, sizeof(resolve->query_question.qname), name)) {
+    if (str_copy(question.qname, sizeof(question.qname), name)) {
         log_warning("qname overflow: %s", name);
         return 1;
     }
 
-    // dispatch
-    if ((err = dns_query(dns, &resolve->query_header, &resolve->query_question))) {
+    if (dns_pack_question(&resolve->packet, &question)) {
+        log_warning("query overflow: %d", resolve->query_header.qdcount);
+        return 1;
+    }
+
+    resolve->query_header.qdcount++;
+
+    log_info("QD: %s %s:%s", question.qname,
+            dns_class_str(question.qclass),
+            dns_type_str(question.qtype)
+    );
+
+    return 0;
+}
+
+int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type)
+{
+    struct dns_resolve *resolve;
+    int err;
+
+    log_info("%s %s?", name, dns_type_str(type));
+
+    if ((err = dns_resolve_create(dns, &resolve)))
+        return err;
+
+    if ((err = dns_resolve_query(resolve, name, type)))
+        return err;
+
+    // dispatch with updated header
+    if ((err = dns_query(dns, &resolve->packet, &resolve->query_header))) {
         log_error("dns_query: %s %s?", name, dns_type_str(type));
         goto err;
     }
 
     // TODO: schedule multiple queries
-    if ((err = dns_response(dns, &resolve->response, &resolve->response_header))) {
+    if ((err = dns_response(dns, &resolve->packet, &resolve->response_header))) {
+        log_error("dns_response");
+        goto err;
+    }
+
+    // ok
+    *resolvep = resolve;
+
+    return resolve->response_header.rcode;
+
+err:
+    free(resolve);
+
+    return err;
+}
+
+int dns_resolve_multi (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type *types)
+{
+    struct dns_resolve *resolve;
+    int err;
+
+    if ((err = dns_resolve_create(dns, &resolve)))
+        return err;
+
+    for (; *types; types++) {
+        if ((err = dns_resolve_query(resolve, name, *types)))
+            return err;
+    }
+
+    // dispatch
+    if ((err = dns_query(dns, &resolve->packet, &resolve->query_header))) {
+        log_error("dns_query: %s ...?", name);
+        goto err;
+    }
+
+    // TODO: schedule multiple queries
+    if ((err = dns_response(dns, &resolve->packet, &resolve->response_header))) {
         log_error("dns_response");
         goto err;
     }
@@ -267,7 +337,7 @@ int dns_resolve_question (struct dns_resolve *resolve, struct dns_question *ques
         return 1;
 
     // question
-    if ((err = dns_unpack_question(&resolve->response, question))) {
+    if ((err = dns_unpack_question(&resolve->packet, question))) {
         log_warning("dns_unpack_question: %d", resolve->response_questions);
         return err;
     }
@@ -311,7 +381,7 @@ int dns_resolve_record (struct dns_resolve *resolve, enum dns_section *sectionp,
         *sectionp = section;
 
     // record
-    if ((err = dns_unpack_record(&resolve->response, rr))) {
+    if ((err = dns_unpack_record(&resolve->packet, rr))) {
         log_warning("dns_unpack_resource: %d", resolve->response_records);
         return -1;
     }
@@ -326,20 +396,33 @@ int dns_resolve_record (struct dns_resolve *resolve, enum dns_section *sectionp,
 
     // decode
     if (rdata) {
-        if ((err = dns_unpack_rdata(&resolve->response, rr, rdata))) {
+        if ((err = dns_unpack_rdata(&resolve->packet, rr, rdata))) {
             log_warning("dns_unpack_rdata: %d", resolve->response_records);
             return -1;
         }
 
-        uint8_t *u8;
-
         switch (rr->type) {
-            case DNS_A:
-                u8 = (uint8_t *) &rdata->A;
+            case DNS_A: {
+                char buf[INET_ADDRSTRLEN];
 
-                log_qinfo("%d.%d.%d.%d", u8[3], u8[2], u8[1], u8[0]);
+                if (!inet_ntop(AF_INET, &rdata->A, buf, sizeof(buf))) {
+                    log_warning("inet_ntop");
+                } else {
+                    log_qinfo("%s", buf);
+                }
 
-                break;
+            } break;
+
+            case DNS_AAAA: {
+                char buf[INET6_ADDRSTRLEN];
+
+                if (!inet_ntop(AF_INET6, &rdata->A, buf, sizeof(buf))) {
+                    log_warning("inet_ntop");
+                } else {
+                    log_qinfo("%s", buf);
+                }
+
+            } break;
 
             case DNS_NS:
                 log_qinfo("%s", rdata->NS);

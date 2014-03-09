@@ -228,8 +228,17 @@ int dns_unpack_rdata (struct dns_packet *pkt, struct dns_record *rr, union dns_r
     pkt->end = pkt->ptr + rr->rdlength;
 
     switch (rr->type) {
-        case DNS_A:
-            err = dns_unpack_u32(pkt, &rdata->A);
+        case DNS_A: {
+            uint8_t *s4_addr = (uint8_t *) &rdata->A.s_addr;
+
+            for (int i = 0; i < 4; i++)
+                err |= dns_unpack_u8(pkt, &s4_addr[i]);
+
+        } break;
+
+        case DNS_AAAA:
+            for (int i = 0; i < 16; i++)
+                err |= dns_unpack_u8(pkt, &rdata->AAAA.s6_addr[i]);
             break;
 
         case DNS_NS:
