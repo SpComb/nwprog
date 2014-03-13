@@ -64,13 +64,22 @@ void help (const char *argv0) {
 	, argv0, argv0, argv0, argv0, argv0);
 }
 
-int client (const struct options *options, const char *arg) {
+struct client_task {
+    const struct options *options;
+
+    const char *arg;
+};
+
+void client (void *ctx)
+{
+    struct client_task *task = ctx;
+    const struct options *options = task->options;
 	struct urlbuf urlbuf;
 	FILE *get_file = stdout, *put_file = NULL;
 	int ret = 0;
 
-	if (urlbuf_parse(&urlbuf, arg)) {
-		log_fatal("invalid url: %s", arg);
+	if (urlbuf_parse(&urlbuf, task->arg)) {
+		log_fatal("invalid url: %s", task->arg);
 		return 1;
 	}
 
@@ -82,7 +91,7 @@ int client (const struct options *options, const char *arg) {
     // connect?
     if (urlbuf.url.host && *urlbuf.url.host) {
         if (client_open(options->client, &urlbuf.url)) {
-            log_fatal("client_open: %s", arg);
+            log_fatal("client_open: %s", task->arg);
             return 1;
         }
     }
@@ -119,13 +128,13 @@ int client (const struct options *options, const char *arg) {
 	
 	if (put_file) {
 		if ((ret = client_put(options->client, &urlbuf.url, put_file)) < 0) {
-			log_fatal("PUT failed: %s", arg);
+			log_fatal("PUT failed: %s", task->arg);
             return 3;
 		}
 
 	} else {
 		if ((ret = client_get(options->client, &urlbuf.url)) < 0) {
-			log_fatal("GET failed: %s", arg);
+			log_fatal("GET failed: %s", task->arg);
             return 3;
 		}
 	}
@@ -173,6 +182,8 @@ int main (int argc, char **argv)
         .http_version   = HTTP_10,
     };
 
+    struct event_main *event_main;
+
 	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:", long_options, NULL)) >= 0) {
 		switch (opt) {
 			case 'h':
@@ -215,6 +226,12 @@ int main (int argc, char **argv)
 
 	// apply
 	log_set_level(log_level);
+
+    if ((err = event_main_create(&event_main))) {
+        log_fatal("event_main_create");
+        return 1;
+    }
+
 #ifdef WITH_SSL
     if ((err = ssl_main_create(&options.ssl_main))) {
         log_fatal("ssl_main_create");
@@ -223,7 +240,7 @@ int main (int argc, char **argv)
 #endif
 
     // setup client
-	if (client_create(&options.client)) {
+	if (client_create(event_main, &options.client)) {
 		log_fatal("failed to initialize client");
 		err = 2;
 		goto error;
@@ -249,8 +266,21 @@ int main (int argc, char **argv)
 	}
 
 	while (optind < argc && !err) {
-		err = client(&options, argv[optind++]);
+        struct client_task task = {
+            .options    = &options,
+            .arg        = argv[optind++],
+        };
+
+        if ((err = event_start(event_main, client, &task))) {
+            log_fatal("event_start");
+            goto error;
+        }
 	}
+
+    if ((err = event_main_run(event_main))) {
+        log_fatal("event_main_run");
+        goto error;
+    }
 
 error:
     if (options.client)
