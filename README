@@ -2,8 +2,8 @@
 
 This coursework project consists of several parts:
 
-*	A HTTP *client* supporting HTTP/1.0 GET and PUT methods with local files.
-*   A HTTP *server* supporting HTTP/1.0 GET and PUT methods with local files.
+*	A HTTP *client* supporting HTTP/1.1 GET and PUT methods with local files.
+*   A HTTP *server* supporting HTTP/1.1 GET and PUT methods with local files.
 *	Tests for the internal components.
 
 ## Building
@@ -37,6 +37,8 @@ The libssl-dev headers must be available:
 
 * `libssl-dev`
 
+The server does NOT provide *https* support.
+
 ### Valgrind
 
 Due to the use of multiple stacks, running the server under valgrind will report spurious errors. This can be avoided
@@ -63,14 +65,42 @@ The valgrind headers are included in the valgrind package:
 
 			-I --iam=username  Send Iam header
 
-The client will by default send an additional Iam: header in the request, containing the login username of the system
-user running the client.
+The client will by default send an additional `Iam:` header in the request, containing the login username of the system
+user running the process.
 
 ### Examples
 
 	$ ./bin/client -q http://www.ietf.org/rfc/rfc2616.txt
 	$ ./bin/client -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt
 	$ ./bin/client -P rfc2616.txt http://nwprog1.netlab.hut.fi:1340/upload/rfc2616.txt
+
+## Server
+
+The server does not provide any defaults for `<listen>`, `--daemon` or `--static/upload`, and these must be
+explicitly given. Running the `server` without any arguments will simply exit immediately.
+
+    $ ./bin/server -h
+    Usage: ./bin/server [options] <listen>
+
+        -h --help          Display this text
+        -q --quiet         Less output
+        -v --verbose       More output
+        -d --debug         Debug output
+
+        -D --daemon             Daemonize
+
+        -I --iam=username       Send Iam header
+        -S --static=path        Serve static files
+        -U --upload=path        Accept PUT files
+
+The server will by default send an additional `Iam:` header in the response, containing the login username of the system
+user running the process.
+
+### Examples
+
+    $ ./bin/server -v localhost:8080 -S public/
+    $ ./bin/server -v localhost:8080 ip6-localhost:8080 -S public/
+    $ ./bin/server :1340 --static public/ --upload public/upload/ --daemon
 
 ## Testing
 
