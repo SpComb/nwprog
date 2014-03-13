@@ -13,6 +13,8 @@
 
 struct client {
 	/* Settings */
+    struct event_main *event_main;
+
 #ifdef WITH_SSL
     struct ssl_main *ssl_main;
 #endif
@@ -82,7 +84,7 @@ struct client_response {
     bool close;
 };
 
-int client_create (struct client **clientp)
+int client_create (struct event_main *event_main, struct client **clientp)
 {
 	struct client *client;
 
@@ -92,6 +94,8 @@ int client_create (struct client **clientp)
 	}
 
     TAILQ_INIT(&client->headers);
+    
+    client->event_main = event_main;
 	
 	*clientp = client;
 
@@ -165,7 +169,7 @@ int client_open_http (struct client *client, const struct url *url)
 	if (url->port)
 		port = url->port;
 	
-    if ((err = tcp_client(&client->tcp, url->host, port))) {
+    if ((err = tcp_client(client->event_main, &client->tcp, url->host, port))) {
         log_error("tcp_client");
         return err;
     }

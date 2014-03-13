@@ -1,6 +1,7 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
+#include "common/event.h"
 #include "common/http.h"
 #include "common/url.h"
 
@@ -18,7 +19,7 @@ struct client;
 /*
  * Create a new client.
  */
-int client_create (struct client **clientp);
+int client_create (struct event_main *event_main, struct client **clientp);
 
 #ifdef WITH_SSL
 /*
