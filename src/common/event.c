@@ -146,11 +146,12 @@ static void event_switch (struct event_main *event_main, struct event_task **tas
     if (task->exit) {
         log_debug("%s[%p] <- %s[%p]: exit %d", main_name, main_task, task->name, task, task->exit);
 
+        // notify caller as well - we might also be deleting ourself!?
+        *taskp = NULL;
+
         free(task->co_stack);
         free(task);
 
-        // notify caller as well
-        *taskp = NULL;
     } else {
         log_debug("%s[%p] <- %s[%p]", main_name, main_task, task->name, task);
     }
@@ -454,11 +455,13 @@ int event_main_run (struct event_main *event_main)
             if (!timeout_event) {
                 log_error("select timeout without event?!");
             } else {
+                struct event_task *task = timeout_event->task;
+
                 // notify
                 timeout_event->flags = EVENT_TIMEOUT;
                 
-                // NOTE: this may event_destroy(event)
-                event_switch(event_main, &timeout_event->task);
+                // NOTE: this may event_destroy(timeout_event)
+                event_switch(event_main, &task);
             }
         } else {
             // event_destroy -safe loop...
