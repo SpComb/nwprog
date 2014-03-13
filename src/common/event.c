@@ -4,6 +4,7 @@
 
 #include <pcl.h>
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/queue.h>
@@ -104,6 +105,12 @@ int event_main_create (struct event_main **event_mainp)
 int event_create (struct event_main *event_main, struct event **eventp, int fd)
 {
     struct event *event;
+
+    // TODO: switch to something better than select()
+    if (fd >= FD_SETSIZE) {
+        log_error("unable to select() on fd %d > %d", fd, FD_SETSIZE);
+        return -1;
+    }
 
     if (!(event = calloc(1, sizeof(*event)))) {
         log_perror("calloc");
@@ -386,6 +393,9 @@ int event_main_run (struct event_main *event_main)
         FD_ZERO(&write);
 
         TAILQ_FOREACH(event, &event_main->events, event_main_events) {
+            // select's FD_SET only supports fd's under a certain limit (e.g. 1k), larger ones invoke undefined behaviour.
+            assert(event->fd < FD_SETSIZE);
+
             if (event->flags & EVENT_READ)
                 FD_SET(event->fd, &read);
             
@@ -430,7 +440,10 @@ int event_main_run (struct event_main *event_main)
                 select_timeout.tv_usec = 1000000 + event_timeout.tv_usec - select_timeout.tv_usec;
 
             } else {
-                log_warning("timeout in future: %ld:%ld", event_timeout.tv_sec, event_timeout.tv_usec);
+                log_warning("timeout in past: %ld:%ld < %ld:%ld", 
+                        event_timeout.tv_sec, event_timeout.tv_usec,
+                        select_timeout.tv_sec, select_timeout.tv_usec
+                );
                 select_timeout.tv_sec = 0;
                 select_timeout.tv_usec = 0;
             }
