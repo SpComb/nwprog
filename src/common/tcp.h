@@ -16,11 +16,6 @@ struct tcp_client;
 typedef void (tcp_server_handler)(struct tcp_server *server, struct tcp *tcp, void *ctx);
 
 /*
- * Open a TCP socket and connect to given host/port.
- */
-int tcp_connect (int *sockp, const char *host, const char *port);
-
-/*
  * Open a TCP server socket, listening on the given host/port.
  *
  * host may be given as NULL to listen on all addresses.
@@ -46,10 +41,8 @@ void tcp_server_destroy (struct tcp_server *server);
 
 /*
  * Connect to a server..
- *
- * XXX: blocking
  */
-int tcp_client (struct tcp **tcpp, const char *host, const char *port);
+int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *host, const char *port);
 
 /*
  * TCP connection interface.
