@@ -72,6 +72,11 @@ int event_pending (struct event *event);
 int event_yield (struct event *event, int flags, const struct timeval *timeout);
 
 /*
+ * Pause execution until the next event-loop iteration.
+ */
+int event_sleep (struct event *event, const struct timeval *timeout);
+
+/*
  * Yield execution on given event, waiting for the task that has event_yield()'d on that event to event_notify() us.
  *
  * TODO: some kind of tracking of dead tasks that are waiting on an event that nobody is yielding on.

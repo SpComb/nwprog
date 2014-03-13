@@ -256,6 +256,11 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         return -1;
     }
 
+    if (!flags) {
+        log_fatal("Task %s[%p] attempted to yield event:%d without flags", task->name, task, event->fd);
+        return -1;
+    }
+
     if (event->task) {
         log_fatal("Task %s[%p] attempted to override event:%d task %s[%p]", task->name, task, event->fd, event->task->name, event->task);
         return -1;
@@ -273,6 +278,7 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
             return -1;
         }
         
+        // XXX: tv_usec overflow?
         event->timeout.tv_sec += timeout->tv_sec;
         event->timeout.tv_usec += timeout->tv_usec;
     }
@@ -290,7 +296,7 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
             event->flags & EVENT_WRITE ? "W" : "",
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
-    
+
     // read event state
     flags = event->flags;
     
@@ -302,6 +308,62 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         return 1;
     else 
         return 0;
+}
+
+int event_sleep (struct event *event, const struct timeval *timeout)
+{
+    struct event_task *task = event->event_main->task;
+
+    if (!task) {
+        log_fatal("%d yielding without task; main() should be in event_main() now...", event->fd);
+        return -1;
+    }
+
+    if (event->task) {
+        log_fatal("Task %s[%p] attempted to override event:%d task %s[%p]", task->name, task, event->fd, event->task->name, event->task);
+        return -1;
+    }
+
+    event->task = task;
+    event->flags = EVENT_TIMEOUT;
+
+    if (timeout) {
+        // set timeout in future
+        if (gettimeofday(&event->timeout, NULL)) {
+            log_perror("gettimeofday");
+            return -1;
+        }
+
+        // XXX: tv_usec overflow?
+        event->timeout.tv_sec += timeout->tv_sec;
+        event->timeout.tv_usec += timeout->tv_usec;
+
+    } else {
+        // set immediate timeout
+        if (gettimeofday(&event->timeout, NULL)) {
+            log_perror("gettimeofday");
+            return -1;
+        }
+    }
+
+    log_debug("<- %s[%p] %d(S)", task->name, task, event->fd);
+
+    co_resume();
+
+    log_debug("<- %s[%p] %d(S)", task->name, task, event->fd);
+
+    // read event state
+    int flags = event->flags;
+
+    // clear yield state
+    event->flags = 0;
+    event->task = NULL;
+
+    if (flags != EVENT_TIMEOUT) {
+        log_warning("Task %s[%p] woke up from sleep with non-TIMEOUT flags: %x", task->name, task, flags);
+    }
+
+    return 0;
 }
 
 int event_wait (struct event *event, struct event_task **waitp)
