@@ -34,7 +34,7 @@ int tcp_listen (int *sockp, const char *host, const char *port, int backlog)
 	int sock = -1;
     
 	// translate empty string to NULL
-	if (!*host)
+	if (!host || !*host)
 		host = NULL;
 
 	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
