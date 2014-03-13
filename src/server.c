@@ -9,10 +9,12 @@
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 struct options {
 	bool daemon;
+    unsigned nfiles;
 	const char *iam;
 	const char *S;
     const char *U;
@@ -28,7 +30,9 @@ static const struct option main_options[] = {
 	{ "quiet",		0, 	NULL,		'q' },
 	{ "verbose",	0,	NULL,		'v'	},
 	{ "debug",		0,	NULL,		'd'	},
+
 	{ "daemon",		0,	NULL,		'D'	},
+    { "nfiles",     1,  NULL,       'N' },
 
 	{ "iam",		1,	NULL,		'I' },
 	{ "static",		1,	NULL,		'S' },
@@ -46,12 +50,48 @@ void help (const char *argv0) {
 			"	-d --debug         Debug output\n"
 			"\n"
 			"	-D --daemon			Daemonize\n"
+            "   -N --nfiles         Limit number of open files\n"
 			"\n"
 			"	-I --iam=username  	Send Iam header\n"
 			"	-S --static=path	Serve static files\n"
             "   -U --upload=path    Accept PUT files\n"
 			"\n"
 	, argv0);
+}
+
+/*
+ * Set the process number-of-open-files limit to a suitable value for the given event_main.
+ */
+int init_nfiles (struct options *options, struct event_main *event_main)
+{
+    int max = event_get_max(event_main);
+    struct rlimit nofile;
+
+    if (options->nfiles) {
+        nofile.rlim_cur = nofile.rlim_max = options->nfiles;
+    } else {
+        if (getrlimit(RLIMIT_NOFILE, &nofile)) {
+            log_perror("getrlimit: nofile");
+            return -1;
+        }
+    }
+
+    if (!max || nofile.rlim_cur < max) {
+        log_info("using --nfiles limit %d < %d", nofile.rlim_cur, max);
+        return 0;
+    }
+
+    log_warning("currently set --nfiles rlimit %d is too high, adjusting to %d - 1", nofile.rlim_cur, max);
+
+    // safe limit...
+    nofile.rlim_cur = nofile.rlim_max = max - 1;
+
+    if (setrlimit(RLIMIT_NOFILE, &nofile)) {
+        log_perror("setrlimit: nofile: %d/%d", nofile.rlim_cur, nofile.rlim_max);
+        return -1;
+    }
+
+    return 0;
 }
 
 int main_listen (struct options *options, const char *arg)
@@ -84,12 +124,12 @@ int main (int argc, char **argv)
 	};
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdDI:S:U:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdDN:I:S:U:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
 				return 0;
-			
+
 			case 'q':
 				log_level = LOG_ERROR;
 				break;
@@ -104,11 +144,18 @@ int main (int argc, char **argv)
 
 			case 'D':
 				options.daemon = true;
-			
+
+            case 'N':
+                if (str_uint(optarg, &options.nfiles)) {
+                    log_fatal("invalid --nfiles/N: %s", optarg);
+                    return 1;
+                }
+                break;
+
             case 'I':
                 options.iam = optarg;
                 break;
-			
+
 			case 'S':
 				options.S = optarg;
 				break;
@@ -130,6 +177,11 @@ int main (int argc, char **argv)
 
     if ((err = event_main_create(&event_main))) {
         log_fatal("event_main_create");
+        goto error;
+    }
+
+    if ((err = init_nfiles(&options, event_main))) {
+        log_fatal("invalid --nfiles setting for event mainloop");
         goto error;
     }
 
