@@ -31,6 +31,20 @@ const char * sockpeer_str (int sock);
 int sock_nonblocking (int sock);
 
 /*
+ * Connect on socket.
+ *
+ * Returns 1 on nonblocking, 0 on success, <0 on error.
+ */
+int sock_connect (int sock, void *addr, size_t addrlen);
+
+/*
+ * Poll socket for error status.
+ *
+ * Returns <0 on error, 0 on success, >0 on socket error.
+ */
+int sock_error (int sock);
+
+/*
  * Accept a new socket connection on a listen() socket.
  *
  * Returns 1 on nonblocking, 0 on success, <0 on error.

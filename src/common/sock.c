@@ -94,6 +94,44 @@ int sock_nonblocking (int sock)
 	return 0;
 }
 
+int sock_connect (int sock, void *addr, size_t addrlen)
+{
+    int ret;
+
+    ret = connect(sock, addr, addrlen);
+ 
+    if (ret >= 0) {
+        return 0;
+
+    } else if (errno == EINPROGRESS) {
+        return 1;
+
+    } else {
+        log_perror("connect");
+        return -1;
+    }
+}
+
+int sock_error (int sock)
+{
+    int out;
+    socklen_t outlen = sizeof(out);
+
+    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &out, &outlen) < 0) {
+        log_perror("getsockopt");
+        return -1;
+    }
+
+    if (outlen != sizeof(out)) {
+        log_error("getsockopt: outlen does not match");
+        return -1;
+    }
+
+    log_debug("%d", out);
+
+    return out;
+}
+
 int sock_accept (int ssock, int *sockp)
 {
     int sock;
