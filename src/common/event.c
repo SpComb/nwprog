@@ -102,13 +102,19 @@ int event_main_create (struct event_main **event_mainp)
     return 0;
 }
 
+int event_get_max (struct event_main *event_main)
+{
+    // TODO: switch to something better than select()
+    return FD_SETSIZE;
+}
+
 int event_create (struct event_main *event_main, struct event **eventp, int fd)
 {
     struct event *event;
 
     // TODO: switch to something better than select()
-    if (fd >= FD_SETSIZE) {
-        log_error("unable to select() on fd %d > %d", fd, FD_SETSIZE);
+    if (fd >= event_get_max(event_main)) {
+        log_error("given fd is too large: %d > %d", fd, event_get_max(event_main));
         return -1;
     }
 

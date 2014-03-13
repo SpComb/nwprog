@@ -34,6 +34,14 @@ typedef void (event_task_func)(void *ctx);
 int event_main_create (struct event_main **event_mainp);
 
 /*
+ * Return the limit on acceptable fd's for use with event_create.
+ * The returned value is the number of acceptable FDs, i.e. fd == max is invalid.
+ *
+ * Returns 0 on no limit, >0 on limit.
+ */
+int event_get_max (struct event_main *event_main);
+
+/*
  * Prepare a new event for use; initially inactive.
  */
 int event_create (struct event_main *event_main, struct event **eventp, int fd);
