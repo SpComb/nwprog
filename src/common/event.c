@@ -128,10 +128,12 @@ int event_create (struct event_main *event_main, struct event **eventp, int fd)
  * No other function may use co_call(), and no task may event_switch() into a task that it has been
  * event_switch()'d into from.
  *
- * This function is also resposible for cleaning up after tasks that have exited.
+ * This function is also resposible for cleaning up after tasks that have exited, and will set *taskp
+ * to NULL if that happens.
  */
-static void event_switch (struct event_main *event_main, struct event_task *task)
+static void event_switch (struct event_main *event_main, struct event_task **taskp)
 {
+    struct event_task *task = *taskp;
     struct event_task *main_task = event_main->task;
     const char *main_name = main_task ? main_task->name : "*";
 
@@ -146,6 +148,9 @@ static void event_switch (struct event_main *event_main, struct event_task *task
 
         free(task->co_stack);
         free(task);
+
+        // notify caller as well
+        *taskp = NULL;
     } else {
         log_debug("%s[%p] <- %s[%p]", main_name, main_task, task->name, task);
     }
@@ -205,9 +210,11 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
 
     log_debug("-> %s[%p]", task->name, task);
 
-    event_switch(event_main, task);
-
-    log_debug("<- %s[%p]", task->name, task);
+    event_switch(event_main, &task);
+    
+    log_debug("<- %s[%p]",
+            task ? task->name : "***", task
+    );
 
     return 0;
 
@@ -347,11 +354,11 @@ int event_notify (struct event *event, struct event_task **notifyp)
     // mark notify target as notified
     *notifyp = NULL;
 
-    event_switch(event->event_main, notify);
+    event_switch(event->event_main, &notify);
 
     log_debug("%s[%p] <- %s[%p]",
             task->name, task,
-            notify->name, notify
+            notify ? notify->name : "***", notify
     );
 
     return 0;
@@ -451,7 +458,7 @@ int event_main_run (struct event_main *event_main)
                 timeout_event->flags = EVENT_TIMEOUT;
                 
                 // NOTE: this may event_destroy(event)
-                event_switch(event_main, timeout_event->task);
+                event_switch(event_main, &timeout_event->task);
             }
         } else {
             // event_destroy -safe loop...
@@ -474,7 +481,7 @@ int event_main_run (struct event_main *event_main)
                     event->flags = flags;
                     
                     // this may event_destroy(event)
-                    event_switch(event_main, task);
+                    event_switch(event_main, &task);
                 }
             }
         }
