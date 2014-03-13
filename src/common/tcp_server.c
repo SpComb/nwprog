@@ -119,25 +119,35 @@ error:
 	return err;
 }
 
-/*
- * Accept a new incoming connection.
- */
 int tcp_server_accept (struct tcp_server *server, struct tcp **tcpp)
 {
     int err;
     int sock;
 
-    while ((err = sock_accept(server->sock, &sock)) > 0) {
-        // schedule
-        if ((err = event_yield(server->event, EVENT_READ, NULL))) {
-            log_error("event_yield");
-            return err;
-        }
-    }
+    while ((err = sock_accept(server->sock, &sock)) != 0) {
+        // handle various error cases
+        if (err < 0 && (errno == EMFILE || errno == ENFILE)) {
+            log_pwarning("temporary accept failure: retrying");
 
-    if (err < 0) {
-        log_error("sock_accept");
-        return -1;
+            // TODO: some kind of backoff or failure limit, in case all tasks are somehow stuck
+            if ((err = event_sleep(server->event, NULL))) {
+                log_error("event_sleep");
+                return err;
+            }
+
+            continue;
+
+        } else if (err < 0) {
+            log_error("sock_accept");
+            return -1;
+
+        } else {
+            // schedule
+            if ((err = event_yield(server->event, EVENT_READ, NULL))) {
+                log_error("event_yield");
+                return err;
+            }
+        }
     }
 
 	log_info("%s accept %s", sockname_str(sock), sockpeer_str(sock));

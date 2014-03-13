@@ -31,6 +31,8 @@ int tcp_server (struct event_main *event_main, struct tcp_server **serverp, cons
  * Accept a new incoming request.
  *
  * This will event_yield on the server socket..
+ * 
+ * TODO: Return >0 on temporary per-client errors?
  */
 int tcp_server_accept (struct tcp_server *server, struct tcp **tcpp);
 
