@@ -1,5 +1,7 @@
 #include "common/util.h"
 
+#include "common/log.h"
+
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -53,6 +55,26 @@ int str_copy (char *buf, size_t size, const char *str)
     memcpy(buf, str, len);
 
     buf[len] = '\0';
+
+    return 0;
+}
+
+int str_int (const char *str, int *intp)
+{
+    if (sscanf(str, "%d", intp) != 1) {
+        log_warning("invalid int: %s", str);
+        return 1;
+    }
+
+    return 0;
+}
+
+int str_uint (const char *str, unsigned *uintp)
+{
+    if (sscanf(str, "%u", uintp) != 1) {
+        log_warning("invalid unsigned int: %s", str);
+        return 1;
+    }
 
     return 0;
 }

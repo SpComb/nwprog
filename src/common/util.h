@@ -16,4 +16,10 @@ const char *strdump (const char *str);
  */
 int str_copy (char *buf, size_t size, const char *str);
 
+/*
+ * Parse a string to an int.
+ */
+int str_int (const char *str, int *intp);
+int str_uint (const char *str, unsigned *uintp);
+
 #endif
