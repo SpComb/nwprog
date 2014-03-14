@@ -31,7 +31,7 @@ static const struct option main_options[] = {
 	{ "quiet",		0, 	NULL,		'q' },
 	{ "verbose",	0,	NULL,		'v'	},
 	{ "debug",		0,	NULL,		'd'	},
-    { "log-file",   0,  NULL,       'L' },
+    { "log-file",   1,  NULL,       'L' },
 
 	{ "daemon",		0,	NULL,		'D'	},
     { "nfiles",     1,  NULL,       'N' },
