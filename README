@@ -102,6 +102,7 @@ user running the process.
 
     $ ./bin/server -v localhost:8080 -S public/
     $ ./bin/server -v localhost:8080 ip6-localhost:8080 -S public/
+    $ ./bin/server -v [::]:8080 -S public/
     $ ./bin/server :1340 --static public/ --upload public/upload/ --daemon
 
 ## Testing
