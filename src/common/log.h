@@ -2,6 +2,7 @@
 #define LOG_H
 
 #include <stdarg.h>
+#include <stdio.h>
 
 enum log_level {
 	LOG_FATAL,
@@ -33,10 +34,16 @@ void _log (const char *prefix, enum log_level level, int flags, const char *fmt,
 #define log_error(fmt, ...) 	_log(__func__, LOG_ERROR,	0,			fmt, ##__VA_ARGS__)
 #define log_perror(fmt, ...) 	_log(__func__, LOG_ERROR,	LOG_ERRNO,	fmt, ##__VA_ARGS__)
 #define log_fatal(fmt, ...) 	_log(__func__, LOG_FATAL,	0,			fmt, ##__VA_ARGS__)
+#define log_pfatal(fmt, ...) 	_log(__func__, LOG_FATAL,	LOG_ERRNO,	fmt, ##__VA_ARGS__)
 
 /*
  * Set the maximum log level.
  */
 void log_set_level (enum log_level level);
+
+/*
+ * Redirect logging to given file.
+ */
+void log_set_file (FILE *file);
 
 #endif

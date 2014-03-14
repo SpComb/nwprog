@@ -6,6 +6,7 @@
 #include <string.h>
 
 static enum log_level _log_level = LOG_LEVEL;
+static FILE *_log_file = NULL;
 
 static const char * log_level_str (enum log_level level) {
 	switch (level) {
@@ -20,20 +21,27 @@ static const char * log_level_str (enum log_level level) {
 
 void _logv (const char *prefix, enum log_level level, int flags, const char *fmt, va_list args)
 {
+    FILE *log_file = stderr;
+
+    if (_log_file) 
+        log_file = _log_file;
+
 	// supress below configured log level
 	if (level > _log_level)
 		return;
     
     if (!(flags & LOG_NOPRE))
-    	fprintf(stderr, "%-8s %30s: ", log_level_str(level), prefix);
+    	fprintf(log_file, "%-8s %30s: ", log_level_str(level), prefix);
 
-	vfprintf(stderr, fmt, args);
+	vfprintf(log_file, fmt, args);
 	
 	if (flags & LOG_ERRNO)
-		fprintf(stderr, ": %s", strerror(errno));
+		fprintf(log_file, ": %s", strerror(errno));
 
     if (!(flags & LOG_NOLN))
-	    fprintf(stderr, "\n");
+	    fprintf(log_file, "\n");
+
+    fflush(log_file);
 }
 
 void _log (const char *prefix, enum log_level level, int flags, const char *fmt, ...)
@@ -48,4 +56,9 @@ void _log (const char *prefix, enum log_level level, int flags, const char *fmt,
 void log_set_level (enum log_level level)
 {
 	_log_level = level;
+}
+
+void log_set_file (FILE *file)
+{
+    _log_file = file;
 }
