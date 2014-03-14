@@ -30,6 +30,8 @@ struct test_url {
     { "/path/",                     { .path = "path/" } },
     { "/path?query",                { .path = "path", .query = "query" } },
 
+    { "[fe80::foo]:80",             { .host = "fe80::foo", .port = "80" } },
+
     { }
 };
 

@@ -37,6 +37,8 @@ int url_parse (struct url *url, char *buf)
 		SCHEME,
 		SCHEME_SEP,
 		HOST,
+        HOST_IPV6,
+        HOST_POST,
 		PORT,
 		PATH,
         QUERY,
@@ -44,6 +46,7 @@ int url_parse (struct url *url, char *buf)
     struct parse parsing[] = {
         { START,        '/',        START_SEP   },
         { START,        ':',        SCHEME,     PARSE_SKIP					},
+        { START,        '[',        HOST_IPV6   },
         { START,        0,          HOST,       PARSE_STRING,   			.parse_string = &url->host			},
 
         { START_SEP,    '/',        HOST        },
@@ -56,9 +59,18 @@ int url_parse (struct url *url, char *buf)
 
         { SCHEME_SEP,   '/',        HOST        },
         
+        { HOST,         '[',        HOST_IPV6,  PARSE_KEEP  },
         { HOST,         ':',        PORT,       PARSE_STRING,   			.parse_string = &url->host          },
         { HOST,         '/',        PATH,       PARSE_STRING,   			.parse_string = &url->host          },
         { HOST,         0,          HOST,       PARSE_STRING,   			.parse_string = &url->host          },
+
+        // XXX: too lax
+        { HOST_IPV6,    ']',        HOST_POST,  PARSE_STRING,               .parse_string = &url->host          },
+
+        { HOST_POST,    ':',        PORT        },
+        { HOST_POST,    '/',        PATH        },
+        { HOST_POST,    0,          HOST_POST   },
+        { HOST_POST,    -1,         -1          },
 
         { PORT,         '/',        PATH,       PARSE_STRING,   			.parse_string = &url->port          },
         { PORT,         0,          PORT,       PARSE_STRING,   			.parse_string = &url->port          },
