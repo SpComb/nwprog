@@ -5,6 +5,7 @@
 #include "common/event.h"
 #include "common/log.h"
 #include "common/url.h"
+#include "common/util.h"
 
 #include <getopt.h>
 #include <stdbool.h>
@@ -80,17 +81,17 @@ int init_nfiles (struct options *options, struct event_main *event_main)
     }
 
     if (!max || nofile.rlim_cur < max) {
-        log_info("using --nfiles limit %d < %d", nofile.rlim_cur, max);
+        log_info("using --nfiles limit %lu < %d", nofile.rlim_cur, max);
         return 0;
     }
 
-    log_warning("currently set --nfiles rlimit %d is too high, adjusting to %d - 1", nofile.rlim_cur, max);
+    log_warning("currently set --nfiles rlimit %lu is too high, adjusting to %d - 1", nofile.rlim_cur, max);
 
     // safe limit...
     nofile.rlim_cur = nofile.rlim_max = max - 1;
 
     if (setrlimit(RLIMIT_NOFILE, &nofile)) {
-        log_perror("setrlimit: nofile: %d/%d", nofile.rlim_cur, nofile.rlim_max);
+        log_perror("setrlimit: nofile: %lu/%lu", nofile.rlim_cur, nofile.rlim_max);
         return -1;
     }
 
