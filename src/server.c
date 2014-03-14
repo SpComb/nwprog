@@ -144,6 +144,7 @@ int main (int argc, char **argv)
 
 			case 'D':
 				options.daemon = true;
+                break;
 
             case 'N':
                 if (str_uint(optarg, &options.nfiles)) {
