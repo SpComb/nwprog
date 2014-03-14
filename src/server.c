@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 struct options {
+    FILE *log_file;
 	bool daemon;
     unsigned nfiles;
 	const char *iam;
@@ -30,6 +31,7 @@ static const struct option main_options[] = {
 	{ "quiet",		0, 	NULL,		'q' },
 	{ "verbose",	0,	NULL,		'v'	},
 	{ "debug",		0,	NULL,		'd'	},
+    { "log-file",   0,  NULL,       'L' },
 
 	{ "daemon",		0,	NULL,		'D'	},
     { "nfiles",     1,  NULL,       'N' },
@@ -48,6 +50,7 @@ void help (const char *argv0) {
 			"	-q --quiet         Less output\n"
 			"	-v --verbose       More output\n"
 			"	-d --debug         Debug output\n"
+            "   -L --log-file      Write log to given file\n"
 			"\n"
 			"	-D --daemon			Daemonize\n"
             "   -N --nfiles         Limit number of open files\n"
@@ -124,7 +127,7 @@ int main (int argc, char **argv)
 	};
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdDN:I:S:U:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -141,6 +144,13 @@ int main (int argc, char **argv)
 			case 'd':
 				log_level = LOG_DEBUG;
 				break;
+
+            case 'L':
+                if (!(options.log_file = fopen(optarg, "a"))) {
+                    log_pfatal("fopen: %s", optarg);
+                    return 1;
+                }
+                break;
 
 			case 'D':
 				options.daemon = true;
@@ -224,6 +234,10 @@ int main (int argc, char **argv)
 	if (options.daemon) {
 		daemon_start();
 	}
+
+    if (options.log_file) {
+        log_set_file(options.log_file);
+    }
 
     if ((err = event_main_run(event_main))) {
         log_fatal("event_main_run");
