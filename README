@@ -23,6 +23,8 @@ The code has been built on the following OS/Distributions:
 
 Building requires GCC 4.6 or newer, with support for -std=gnu99 and -D _POSIX_C_SOURCE=200112L
 
+GCC 4.4 will not work due to [gcc bug #10676](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=10676).
+
 ## Build options
 
 The supplied Makefile supports some additional build configuration options for various debugging configurations.
