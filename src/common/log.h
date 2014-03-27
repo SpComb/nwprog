@@ -25,6 +25,7 @@ void _log (const char *prefix, enum log_level level, int flags, const char *fmt,
 	__attribute((format (printf, 4, 5)));
 
 #define log_debug(fmt, ...) 	_log(__func__, LOG_DEBUG,	0,			fmt, ##__VA_ARGS__)
+#define log_pdebug(fmt, ...) 	_log(__func__, LOG_DEBUG,	LOG_ERRNO,	fmt, ##__VA_ARGS__)
 #define log_info(fmt, ...) 		_log(__func__, LOG_INFO,	0,			fmt, ##__VA_ARGS__)
 #define log_ninfo(fmt, ...)     _log(__func__, LOG_INFO,	LOG_NOLN,   fmt, ##__VA_ARGS__)
 #define logv_qinfo(fmt, args)   _logv(__func__, LOG_INFO,	LOG_NOPRE,  fmt, args)
