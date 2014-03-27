@@ -104,11 +104,11 @@ static const struct stream_type tcp_stream_type = {
 
 int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
 {
-	struct tcp *tcp;
+	struct tcp *tcp = NULL;
 
 	if (!(tcp = calloc(1, sizeof(*tcp)))) {
 		log_perror("calloc");
-		return -1;
+		goto error;
 	}
 
 	tcp->sock = sock;
@@ -138,8 +138,14 @@ int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
 	*tcpp = tcp;
 
 	return 0;
+
 error:
-	tcp_destroy(tcp);
+	if (tcp) {
+		tcp_destroy(tcp);
+	} else {
+		close(sock);
+	}
+
 	return -1;
 }
 
