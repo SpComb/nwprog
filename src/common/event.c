@@ -53,6 +53,11 @@ struct event {
      */
     struct event_task *task;
 
+	/*
+	 * Delayed event_destroy() while within event_main()
+	 */
+	bool destroy;
+
     TAILQ_ENTRY(event) event_main_events;
 };
 
@@ -66,10 +71,20 @@ struct event_task {
     event_task_func *func;
     void *ctx;
 
+	/*
+	 * This task has event_register()'d for the given number of events.
+	 */
+	int registered;
+
     /*
      * This task is event_wait()'ing on some given event.
      */
     struct event *wait;
+
+    /*
+     * This task was woken up for the given event.
+     */
+    struct event *event;
 
     /*
      * Set within the task once func() returns.
@@ -247,7 +262,7 @@ int event_pending (struct event *event)
     return 0;
 }
 
-int event_yield (struct event *event, int flags, const struct timeval *timeout)
+int event_register (struct event *event, int flags, const struct timeval *timeout)
 {
     struct event_task *task = event->event_main->task;
 
@@ -257,12 +272,12 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
     }
 
     if (!flags) {
-        log_fatal("Task %s[%p] attempted to yield event:%d without flags", task->name, task, event->fd);
+        log_fatal("Task %s[%p] attempted to yield event %d[%p] without flags", task->name, task, event->fd, event);
         return -1;
     }
 
     if (event->task) {
-        log_fatal("Task %s[%p] attempted to override event:%d task %s[%p]", task->name, task, event->fd, event->task->name, event->task);
+        log_fatal("Task %s[%p] attempted to override event %d[%p] task %s[%p]", task->name, task, event->fd, event, event->task->name, event->task);
         return -1;
     }
     
@@ -281,21 +296,106 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
         // XXX: tv_usec overflow?
         event->timeout.tv_sec += timeout->tv_sec;
         event->timeout.tv_usec += timeout->tv_usec;
-    }
 
-    log_debug("<- %s[%p] %d(%s%s%s)", task->name, task, event->fd,
+    } else if (event->flags & EVENT_TIMEOUT) {
+        // set immediate timeout
+        if (gettimeofday(&event->timeout, NULL)) {
+            log_perror("gettimeofday");
+            return -1;
+        }
+	}
+
+    log_debug("%s[%p] %d(%s%s%s)", task->name, task, event->fd,
             event->flags & EVENT_READ ? "R" : "",
             event->flags & EVENT_WRITE ? "W" : "",
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
 
+	// mark
+	task->registered++;
+
+    return 0;
+}
+
+/*
+ * Internal wait-for-event_switch()-from-event_main() mechaism.
+ *
+ * *eventp should be event that we are expecting to yield on, or NULL to yield from any event.
+ */
+static int _event_yield (struct event_main *event_main, struct event **eventp)
+{
+    struct event_task *task = event_main->task;
+
+    if (!task) {
+        log_fatal("yielding without task; main() should be in event_main() now...");
+        return -1;
+    }
+
+    log_debug("<- %s[%p]", task->name, task);
+
     co_resume();
+
+    struct event *event = task->event;
 
     log_debug("-> %s[%p] %d(%s%s%s)", task->name, task, event->fd,
             event->flags & EVENT_READ ? "R" : "",
             event->flags & EVENT_WRITE ? "W" : "",
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
+
+	if (*eventp && event != *eventp) {
+		log_fatal("%s[%p] unexpected return from yield on %d[%p] to %d[%p",
+				task->name, task,
+				(*eventp)->fd, (*eventp),
+				event->fd, event
+		);
+		return -1;
+	}
+
+	*eventp = event;
+	task->event = NULL;
+
+	return 0;
+}
+
+int event_main_yield (struct event_main *event_main, struct event **eventp)
+{
+	struct event_task *task = event_main->task;
+	struct event *event = NULL;
+
+	if (!task->registered) {
+		log_debug("event_main_yield for %s[%p] without any registered events", task->name, task);
+		return 1;
+	}
+
+	if (_event_yield(event_main, &event)) {
+		log_warning("_event_yield");
+		return -1;
+	}
+	
+	// XXX: this might underflow in some really weird circumstances
+	task->registered--;
+
+    // read event state, TODO: timeouts
+    int flags = event->flags;
+    
+    // clear yield state
+    event->flags = 0;
+    event->task = NULL;
+	
+	// ok
+	*eventp = event;
+
+	return 0;
+}
+
+int event_yield (struct event *event, int flags, const struct timeval *timeout)
+{
+	if (event_register(event, flags, timeout))
+		return -1;
+	
+	if (_event_yield(event->event_main, &event))
+		return -1;
 
     // read event state
     flags = event->flags;
@@ -312,45 +412,12 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
 
 int event_sleep (struct event *event, const struct timeval *timeout)
 {
-    struct event_task *task = event->event_main->task;
+	if (event_register(event, EVENT_TIMEOUT, timeout))
+		return -1;
 
-    if (!task) {
-        log_fatal("%d yielding without task; main() should be in event_main() now...", event->fd);
-        return -1;
-    }
-
-    if (event->task) {
-        log_fatal("Task %s[%p] attempted to override event:%d task %s[%p]", task->name, task, event->fd, event->task->name, event->task);
-        return -1;
-    }
-
-    event->task = task;
-    event->flags = EVENT_TIMEOUT;
-
-    if (timeout) {
-        // set timeout in future
-        if (gettimeofday(&event->timeout, NULL)) {
-            log_perror("gettimeofday");
-            return -1;
-        }
-
-        // XXX: tv_usec overflow?
-        event->timeout.tv_sec += timeout->tv_sec;
-        event->timeout.tv_usec += timeout->tv_usec;
-
-    } else {
-        // set immediate timeout
-        if (gettimeofday(&event->timeout, NULL)) {
-            log_perror("gettimeofday");
-            return -1;
-        }
-    }
-
-    log_debug("<- %s[%p] %d(S)", task->name, task, event->fd);
-
-    co_resume();
-
-    log_debug("<- %s[%p] %d(S)", task->name, task, event->fd);
+	// yield on event
+	if (_event_yield(event->event_main, &event))
+		return -1;
 
     // read event state
     int flags = event->flags;
@@ -360,6 +427,8 @@ int event_sleep (struct event *event, const struct timeval *timeout)
     event->task = NULL;
 
     if (flags != EVENT_TIMEOUT) {
+		struct event_task *task = event->event_main->task;
+
         log_warning("Task %s[%p] woke up from sleep with non-TIMEOUT flags: %x", task->name, task, flags);
     }
 
@@ -442,9 +511,37 @@ int event_notify (struct event *event, struct event_task **notifyp)
 
 void event_destroy (struct event *event)
 {
-    TAILQ_REMOVE(&event->event_main->events, event, event_main_events);
+	if (event->task && event->task->registered) {
+		log_debug("%d[%p] unregistering from task %s[%p]",
+				event->fd, event,
+				event->task->name, event->task
+		);
+		event->task->registered--;
 
-    free(event);
+	} else if (event->task) {
+		log_fatal("%d[%p] with pending task %s[%p]",
+				event->fd, event,
+				event->task->name, event->task
+		);
+	}
+
+	event->task = NULL;
+
+	if (event->event_main->task) {
+		log_debug("%d[%p] delaying destroy() from task %s[%p]",
+				event->fd, event,
+				event->event_main->task->name, event->event_main->task
+		);
+
+		event->destroy = true;
+
+	} else {
+		log_debug("%d[%p]", event->fd, event);
+
+		TAILQ_REMOVE(&event->event_main->events, event, event_main_events);
+
+		free(event);
+	}
 }
 
 int event_main_run (struct event_main *event_main)
@@ -460,10 +557,21 @@ int event_main_run (struct event_main *event_main)
         FD_ZERO(&read);
         FD_ZERO(&write);
 
-        TAILQ_FOREACH(event, &event_main->events, event_main_events) {
+		// event_destroy -safe loop...
+		struct event *event_next;
+
+		for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
+			event_next = TAILQ_NEXT(event, event_main_events);
+
+			// ...delayed GC
+			if (event->destroy) {
+				event_destroy(event);
+				continue;
+			}
+
             // select's FD_SET only supports fd's under a certain limit (e.g. 1k), larger ones invoke undefined behaviour.
             assert(event->fd < FD_SETSIZE);
-
+				
             if (event->flags & EVENT_READ)
                 FD_SET(event->fd, &read);
             
@@ -553,20 +661,28 @@ int event_main_run (struct event_main *event_main)
 
                 int flags = 0;
 
-                if (FD_ISSET(event->fd, &read))
+                if (FD_ISSET(event->fd, &read) && (event->flags & EVENT_READ))
                     flags |= EVENT_READ;
                 
-                if (FD_ISSET(event->fd, &write))
+                if (FD_ISSET(event->fd, &write) && (event->flags & EVENT_WRITE))
                     flags |= EVENT_WRITE;
 
-                if (flags) {
+				if (!flags) {
+					// maybe next time!
+				
+				} else if (event->task) {
                     struct event_task *task = event->task;
 
                     event->flags = flags;
+                    task->event = event;
                     
                     // this may event_destroy(event)
                     event_switch(event_main, &task);
-                }
+				} else if (event->destroy) {
+					log_debug("ignore destroyed event %d[%p] activation", event->fd, event);
+				} else {
+					log_fatal("spurious event %d[%p] activation", event->fd, event);
+				}
             }
         }
     }

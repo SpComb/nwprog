@@ -62,6 +62,20 @@ int _event_start (struct event_main *event_main, const char *name, event_task_fu
 int event_pending (struct event *event);
 
 /*
+ * Register for wakeups on given event, without yielding.
+ */
+int event_register (struct event *event, int flags, const struct timeval *timeout);
+
+/*
+ * Yield execution on registered events.
+ *
+ * Returns 1 if there are no more registered events.
+ *
+ * XXX: how to signal timeout?
+ */
+int event_main_yield (struct event_main *event_main, struct event **eventp);
+
+/*
  * Yield execution on the given event.
  *
  *  flags:          some combination of EVENT_READ|EVENT_WRITE.
@@ -92,6 +106,9 @@ int event_notify (struct event *event, struct event_task **notifyp);
 
 /*
  * Deactivate and release resources.
+ *
+ * Note: destroying an event from within a task will not actually destroy it, but rather mark it for 
+ * safe cleanup within the event_main() loop.
  */
 void event_destroy (struct event *event);
 
