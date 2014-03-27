@@ -331,6 +331,11 @@ static int _event_yield (struct event_main *event_main, struct event **eventp)
         return -1;
     }
 
+	if (!task->registered) {
+		log_debug("event_main_yield for %s[%p] without any registered events", task->name, task);
+		return 1;
+	}
+
     log_debug("<- %s[%p]", task->name, task);
 
     co_resume();
@@ -342,6 +347,9 @@ static int _event_yield (struct event_main *event_main, struct event **eventp)
             event->flags & EVENT_WRITE ? "W" : "",
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
+	
+	// XXX: this might underflow in some really weird circumstances
+	task->registered--;
 
 	if (*eventp && event != *eventp) {
 		log_fatal("%s[%p] unexpected return from yield on %d[%p] to %d[%p",
@@ -363,19 +371,11 @@ int event_main_yield (struct event_main *event_main, struct event **eventp)
 	struct event_task *task = event_main->task;
 	struct event *event = NULL;
 
-	if (!task->registered) {
-		log_debug("event_main_yield for %s[%p] without any registered events", task->name, task);
-		return 1;
-	}
-
 	if (_event_yield(event_main, &event)) {
 		log_warning("_event_yield");
 		return -1;
 	}
 	
-	// XXX: this might underflow in some really weird circumstances
-	task->registered--;
-
     // read event state, TODO: timeouts
     int flags = event->flags;
     
@@ -648,6 +648,7 @@ int event_main_run (struct event_main *event_main)
 
                 // notify
                 timeout_event->flags = EVENT_TIMEOUT;
+				task->event = timeout_event;
                 
                 // NOTE: this may event_destroy(timeout_event)
                 event_switch(event_main, &task);
