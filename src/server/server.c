@@ -58,7 +58,7 @@ struct server_client {
         /* Storage for request method field */
         char method[HTTP_METHOD_MAX];
 
-        /* Storage for request path field */
+        /* Storage for request path field; this is decoded into url and contains embedded NULs1 */
         char pathbuf[HTTP_PATH_MAX];
 
         /* Storage for request Host header */
@@ -72,6 +72,12 @@ struct server_client {
 
         /* Does the client support HTTP/1.1? */
         bool http11;
+
+        /* Progress */
+        bool request;
+        bool header;
+        bool headers;
+        bool body;
 
     } request;
 	
@@ -223,6 +229,11 @@ int server_request (struct server_client *client)
 	const char *method, *path, *version;
 	int err;
 
+    if (client->request.request) {
+        log_fatal("re-reading request");
+        return -1;
+    }
+
 	if ((err = http_read_request(client->http, &method, &path, &version)))
         return err;
 
@@ -250,6 +261,9 @@ int server_request (struct server_client *client)
                 client->request.url.scheme, client->request.url.host, client->request.url.port);
         return 400;
     }
+
+    // mark as read
+    client->request.request = true;
 	
     log_info("%s %s %s", method, path, version);
 
@@ -273,8 +287,31 @@ int server_request_header (struct server_client *client, const char **namep, con
 {
 	int err;
 
-	if ((err = http_read_header(client->http, namep, valuep)))
+    if (!client->request.request) {
+        log_fatal("premature read of request headers before request line");
+        return -1;
+    }
+
+    if (client->request.headers) {
+        log_warning("request headers have already been read");
+        
+        // ignore..
+        return 1;
+    }
+
+	if ((err = http_read_header(client->http, namep, valuep)) < 0) {
+        log_warning("http_read_header");
         return err;
+    }
+
+    if (err) {
+        log_debug("end of headers");
+        client->request.headers = true;
+        return 1;
+    }
+
+    // mark as having read some headers
+    client->request.header = true;
 
 	log_info("\t%20s : %s", *namep, *valuep);
 
@@ -321,6 +358,18 @@ int server_request_file (struct server_client *client, int fd)
 {
 	int err;
 
+    if (!client->request.headers) {
+        log_fatal("read request body without reading headers!?");
+        return -1;
+    }
+
+    if (client->request.body) {
+        log_fatal("re-reading request body...");
+
+        // XXX: ignore..?
+        return -1;
+    }
+
 	// TODO: Transfer-Encoding?
 	if (!client->request.content_length) {
 		log_debug("no request body given");
@@ -331,6 +380,8 @@ int server_request_file (struct server_client *client, int fd)
 		log_warning("http_read_file");
 		return err;
 	}
+
+    client->request.body = true;
 	
 	return 0;
 }
@@ -549,7 +600,7 @@ int server_response_error (struct server_client *client, enum http_status status
     ))
         return -1;
 
-    return status;
+    return 0;
 }
 
 /*
@@ -583,31 +634,61 @@ int server_client_request (struct server *server, struct server_client *client)
 		handler = NULL;
 
 	} else {
-		err = handler->request(handler, client, client->request.method, &client->request.url);
+		if ((err = handler->request(handler, client, client->request.method, &client->request.url))) {
+            log_warning("handler failed with %d", err);
+        }
 	}
+
+    // headers?
+    if (!client->request.headers) {
+        const char *header, *value;
+
+        log_debug("reading remaining headers...");
+
+        // read remaining headers, in case they contain anything relevant for the error response
+        // don't clobber err!
+        while (!server_request_header(client, &header, &value)) {
+
+        }
+    }
+
+    // body?
+    // TODO: needs better logic for when a request contains a body?
+    if (!client->request.body && client->request.content_length) {
+        // force close, as pipelining will fail
+        // we don't want to wait for the entire request body to upload before failing the request...
+        log_debug("ignoring client request body");
+
+        client->response.close = true;
+    }
 
 error:	
 	// response
 	if (err < 0) {
         // sock send/recv error or timeout, or other internal error
         // abort without response
+        log_warning("aborting request without response");
         return err;
 
 	} else if (err > 0) {
 		status = err;
+        log_debug("failing request with response %d", status);
 
 	} else if (client->response.status) {
 		status = 0;
+        log_debug("request handler sent response %d", client->response.status);
 
 	} else {
 		log_warning("status not sent, defaulting to 200");
 		status = 200;
 	}
 	
+    // response line
 	if (status && client->response.status) {
 		log_warning("status %u already sent, should be %u", client->response.status, status);
 
 	} else if (status) {
+        // send full response
 		if (server_response_error(client, status, NULL)) {
 			log_warning("failed to send response status");
 			err = -1;
@@ -616,6 +697,7 @@ error:
 	
 	// headers
 	if (!client->response.headers) {
+        // end-of-headers
 		if (server_response_headers(client)) {
 			log_warning("failed to end response headers");
 			err = -1;
@@ -624,13 +706,12 @@ error:
 
     // entity
     if (client->response.chunked) {
+        // end-of-chunks
         if ((err = http_write_chunks(client->http))) {
             log_warning("failed to end response chunks");
             err = -1;
         }
     }
-
-	// TODO: body on errors
 
     // persistent connection?
     if (client->response.close) {
