@@ -9,14 +9,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-struct tcp_client {
-    struct event_main *event_main;
-};
-
 /*
- * Async connect to given addr.
+ * Open a TCP socket connected to the given addr.
  */
-int tcp_client_connect (struct tcp_client *client, int *sockp, struct addrinfo *addr)
+int tcp_connect (struct event_main *event_main, int *sockp, struct addrinfo *addr)
 {
     struct event *event = NULL;
     int sock;
@@ -27,19 +23,18 @@ int tcp_client_connect (struct tcp_client *client, int *sockp, struct addrinfo *
         return 1;
     }
 
-    if (client->event_main) {
+    if (event_main) {
         if ((err = sock_nonblocking(sock))) {
             log_warning("sock_nonblocking");
             return err;
         }
 
-        if ((err = event_create(client->event_main, &event, sock))) {
+        if ((err = event_create(event_main, &event, sock))) {
             log_warning("event_create");
             return err;
         }
     }
 
-    log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
 
     err = sock_connect(sock, addr->ai_addr, addr->ai_addrlen);
     
@@ -58,8 +53,6 @@ int tcp_client_connect (struct tcp_client *client, int *sockp, struct addrinfo *
         goto error;
     }
 
-    log_info("%s <- %s", sockpeer_str(sock), sockname_str(sock));
-
     *sockp = sock;
 
 error:
@@ -75,9 +68,6 @@ int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *ho
 {
 	int sock;
 	int err;
-    struct tcp_client client = {
-        .event_main     = event_main,
-    };
 	struct addrinfo hints = {
 		.ai_flags		= 0,
 		.ai_family		= AF_UNSPEC,
@@ -92,10 +82,14 @@ int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *ho
 	}
 
 	for (addr = addrs; addr; addr = addr->ai_next) {
-        if ((err = tcp_client_connect(&client, &sock, addr))) {
+        log_info("%s:%s: %s...", host, port, sockaddr_str(addr->ai_addr, addr->ai_addrlen));
+
+        if ((err = tcp_connect(event_main, &sock, addr))) {
             log_perror("%s:%s", addr->ai_canonname, port);
             continue;
         }
+    
+        log_info("%s:%s: %s <- %s", host, port, sockpeer_str(sock), sockname_str(sock));
 
         break;
 	}
