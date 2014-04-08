@@ -194,6 +194,10 @@ int client_open_https (struct client *client, const struct url *url)
         return 1;
     }
 
+    if (client->event_main) {
+        log_warning("no async ssl client support; this request will block");
+    }
+
 	// connect
 	if (url->port)
 		port = url->port;

@@ -1,3 +1,14 @@
+/*
+ * Experimental SSL client support.
+ *
+ * XXX:
+ *      no server cert validation
+ *
+ * TODO:
+ *      event/non-blocking support
+ *      ssl_server support
+ */
+
 #include "common/ssl.h"
 
 #include "common/log.h"
@@ -115,7 +126,8 @@ int ssl_connect (struct ssl *ssl, const char *host, const char *port)
 {
     int err;
 
-	if ((err = tcp_connect(&ssl->sock, host, port))) {
+    // TODO: event_main
+	if ((err = tcp_connect(NULL, &ssl->sock, host, port))) {
 		log_perror("tcp_connect %s:%s", host, port);
         return err;
 	}
