@@ -12,7 +12,9 @@ struct options {
 	const char *put;
     const char *iam;
     enum http_version http_version;
+    bool parallel;
     
+    // state
     struct event_main *event_main;
 #ifdef WITH_SSL
     struct ssl_main *ssl_main;
@@ -31,6 +33,7 @@ static const struct option long_options[] = {
 	{ "debug",		0,	NULL,		'd'	},
 	{ "put",		1,	NULL,		'P' },
     { "http-11",    0,  NULL,       OPT_HTTP_11     },
+    { "parallel",   0,  NULL,       'j' },
 	{ }
 };
 
@@ -48,6 +51,7 @@ void help (const char *argv0) {
             "\n"
 			"	-I --iam=username   Send Iam header\n"
             "	   --http-11        Send HTTP/1.1 requests\n"
+            "   -j --parallel       Perform requests in parallel\n"
 			"\n"
 			"Examples:\n"
 			"\n"
@@ -112,7 +116,7 @@ void client (void *ctx)
 		goto error;
 	}
 
-    // connect?
+    // TODO: support persistent connections with multiple requests
     //if (urlbuf.url.host && *urlbuf.url.host) {
         if (client_open(client, &urlbuf.url)) {
             log_fatal("client_open: %s", task->arg);
@@ -210,7 +214,7 @@ int main (int argc, char **argv)
         .http_version   = HTTP_10,
     };
 
-	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:", long_options, NULL)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:j", long_options, NULL)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -244,6 +248,10 @@ int main (int argc, char **argv)
                 options.http_version = HTTP_11;
                 break;
 
+            case 'j':
+                options.parallel = true;
+                break;
+
 			default:
 				help(argv[0]);
 				return 1;
@@ -252,10 +260,12 @@ int main (int argc, char **argv)
 
 	// apply
 	log_set_level(log_level);
-
-    if ((err = event_main_create(&options.event_main))) {
-        log_fatal("event_main_create");
-        return 1;
+    
+    if (options.parallel) {
+        if ((err = event_main_create(&options.event_main))) {
+            log_fatal("event_main_create");
+            return 1;
+        }
     }
 
 #ifdef WITH_SSL
@@ -271,15 +281,22 @@ int main (int argc, char **argv)
             .arg        = argv[optind++],
         };
 
-        if ((err = event_start(options.event_main, client, &task))) {
-            log_fatal("event_start");
-            goto error;
+        if (options.parallel) {
+            if ((err = event_start(options.event_main, client, &task))) {
+                log_fatal("event_start");
+                goto error;
+            }
+        } else {
+            // non-event'd task
+            client(&task);
         }
 	}
-
-    if ((err = event_main_run(options.event_main))) {
-        log_fatal("event_main_run");
-        goto error;
+    
+    if (options.parallel) {
+        if ((err = event_main_run(options.event_main))) {
+            log_fatal("event_main_run");
+            goto error;
+        }
     }
 
 error:
