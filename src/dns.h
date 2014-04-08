@@ -19,6 +19,9 @@
 /* Per EDNS0... */
 #define DNS_PACKET (4 * 1024)
 
+/* Default for dns_create(.., resolver=NULL) */
+#define DNS_RESOLVER "localhost"
+
 enum dns_opcode {
     DNS_QUERY       = 0,
     DNS_IQUERY      = 1,
@@ -135,6 +138,10 @@ struct dns_resolve;
 
 /*
  * Create a new resolver client.
+ *
+ * resolver:    external resolver host to query, or NULL for default.
+ *
+ * XXX: read /etc/resolv.conf... default is just "localhost" for now..
  */
 int dns_create (struct event_main *event_main, struct dns **dnsp, const char *resolver);
 

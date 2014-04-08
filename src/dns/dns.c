@@ -79,6 +79,11 @@ int dns_create (struct event_main *event_main, struct dns **dnsp, const char *re
     struct dns *dns;
     int err;
 
+    if (!resolver) {
+        // use default resolver
+        resolver = DNS_RESOLVER;
+    }
+
     if (!(dns = calloc(1, sizeof(*dns)))) {
         log_perror("calloc");
         return -1;
