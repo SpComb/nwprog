@@ -134,13 +134,13 @@ int http_read_response (struct http *http, const char **versionp, unsigned *stat
 int http_read_header (struct http *http, const char **headerp, const char **valuep);
 
 /*
- * Read (part of) the response body.
+ * Read the response body as a NUL-terminated string.
  *
- * The size of the given buffer is passed in *lenp, and the number of bytes read in returned in *lenp.
+ * The maximum size to read should be given in len, or 0 to read to EOF.
  *
  * Returns 1 on EOF, <0 on error.
  */
-int http_read_raw (struct http *http, char *buf, size_t *lenp);
+int http_read_string (struct http *http, char **bufp, size_t len);
 
 /*
  * Read the response body into FILE, or discard if -1.

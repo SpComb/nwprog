@@ -112,26 +112,6 @@ static int http_write_line (struct http *http, const char *fmt, ...)
 /* Reading */
 
 /*
- * Read arbitrary data from the connection.
- *
- * Returns 0 on success, <0 on error, >0 on EOF.
- */
-static int http_read (struct http *http, char *buf, size_t *lenp)
-{
-    char *inbuf;
-    int err;
-
-    if ((err = stream_read(http->read, &inbuf, lenp)))
-        return err;
-    
-    log_debug("%zu", *lenp);
-
-    memcpy(buf, inbuf, *lenp);
-
-    return 0;
-}
-
-/*
  * Read one line from the connection, returning a pointer to the (stripped) line in **linep.
  *
  * The returned pointer remains valid until the next http_read_line call, and may be modified.
@@ -468,9 +448,9 @@ int http_read_header (struct http *http, const char **headerp, const char **valu
 	return http_parse_header(line, headerp, valuep);
 }
 
-int http_read_raw (struct http *http, char *buf, size_t *lenp)
+int http_read_string (struct http *http, char **bufp, size_t len)
 {
-	return http_read(http, buf, lenp);
+	return stream_read_string(http->read, bufp, len);
 }
 
 int http_read_file (struct http *http, int fd, size_t content_length)
