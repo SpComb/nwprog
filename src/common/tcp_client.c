@@ -56,7 +56,8 @@ int tcp_connect (struct event_main *event_main, int *sockp, struct addrinfo *add
     *sockp = sock;
 
 error:
-    event_destroy(event);
+    if (event)
+        event_destroy(event);
 
     if (err)
         close(sock);
