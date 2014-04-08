@@ -90,6 +90,7 @@ error:
  */
 inline static void stream_read_mark (struct stream *stream, size_t size)
 {
+    // XXX: assert lenth < size
     stream->length += size;
 }
 
@@ -98,7 +99,16 @@ inline static void stream_read_mark (struct stream *stream, size_t size)
  */
 inline static void stream_write_mark (struct stream *stream, size_t size)
 {
+    // XXX: assert offset < length
     stream->offset += size;
+}
+
+/*
+ * Mark writebuf as consumed.
+ */
+inline static void stream_write_consume (struct stream *stream)
+{
+    stream->offset = stream->length;
 }
 
 /*
@@ -154,6 +164,48 @@ int _stream_read (struct stream *stream)
 
 	stream_read_mark(stream, size);
 
+    return 0;
+}
+
+/*
+ * Put one char into the stream.
+ */
+int _stream_append (struct stream *stream, char c)
+{
+    if (!stream_readbuf_size(stream))
+        return -1;
+
+    *stream_readbuf_ptr(stream) = c;
+
+    stream_read_mark(stream, 1);
+
+    return 0;
+}
+
+/*
+ * Insert one char into the stream.
+ */
+int _stream_insert (struct stream *stream, char c, size_t i)
+{
+    if (i > stream_writebuf_size(stream)) {
+        log_debug("insert %zu out of bounds %zu", i, stream_writebuf_size(stream));
+        return -1;
+    }
+
+    if (!stream_readbuf_size(stream)) {
+        log_debug("insert into full buffer");
+        return -1;
+    }
+    
+    // shift one place right
+    memmove(stream_writebuf_ptr(stream) + i + 1, stream_writebuf_ptr(stream) + i, stream_writebuf_size(stream) - i);
+    
+    // insert
+    *(stream_writebuf_ptr(stream) + i) = c;
+
+    // mark
+    stream_read_mark(stream, 1);
+   
     return 0;
 }
 
@@ -298,6 +350,69 @@ out:
 
     // past end of line
     stream_write_mark(stream, c - stream_writebuf_ptr(stream) + 1);
+
+    return 0;
+}
+
+int stream_read_string (struct stream *stream, char **strp, size_t len)
+{
+    int err;
+    
+    // make room if needed
+    if ((err = _stream_clear(stream)))
+        return err;
+
+    log_debug("%zu / %zu + %zu", len, stream_writebuf_size(stream), stream_readbuf_size(stream));
+
+    // fill 'er up
+    while (!len || stream_writebuf_size(stream) < len) {
+        // needs moar bytez in mah buffers
+        if (!stream_readbuf_size(stream)) {
+            log_debug("buffer became full while reading %zu of %zu", stream_writebuf_size(stream), len);
+            return -1;
+        }
+
+        if ((err = _stream_read(stream)) < 0)
+            return err;
+
+        // handle EOF
+        if (!err) {
+            log_debug("%zu of %zu", stream_writebuf_size(stream), len);
+            continue;
+
+        } else if (!stream_writebuf_size(stream)) {
+            log_debug("eof at start");
+            return 1;
+
+        } else if (!len) {
+            log_debug("read-to-eof gave %zu bytes", stream_writebuf_size(stream));
+            break;
+
+        } else {
+            log_debug("eof when reading %zu of %zu", stream_writebuf_size(stream), len);
+            return 1;
+        }
+    }
+
+    // terminate with NUL
+    if (len) {
+        if (_stream_insert(stream, '\0', len)) {
+            log_debug("stream writebuf became full when insrting NUL");
+            return -1;
+        }
+    } else {
+        if (_stream_append(stream, '\0')) {
+            log_debug("stream writebuf became full when appending NUL");
+            return -1;
+        }
+    }
+    
+    *strp = stream_writebuf_ptr(stream);
+
+    log_debug("%s", *strp);
+
+    // consume
+    stream_write_consume(stream);
 
     return 0;
 }

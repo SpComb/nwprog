@@ -64,6 +64,15 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep);
 int stream_read_line (struct stream *stream, char **linep);
 
 /*
+ * Read stream as a string, returning a pointer to the NUL-terminated data.
+ *
+ * The maximum size to read should be given in len, or 0 to read to EOF.
+ *
+ * Returns 1 on EOF, <0 on error.
+ */
+int stream_read_string (struct stream *stream, char **strp, size_t len);
+
+/*
  * Copy from stream into a FILE.
  *
  * *sizep is the number of bytes to read from stream, or zero to read until EOF.
