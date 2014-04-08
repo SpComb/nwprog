@@ -1,5 +1,6 @@
 #include "server/server.h"
 #include "server/static.h"
+#include "server/dns.h"
 
 #include "common/daemon.h"
 #include "common/event.h"
@@ -20,11 +21,13 @@ struct options {
 	const char *iam;
 	const char *S;
     const char *U;
+    bool dns;
 
     /* Processed */
     struct server *server;
     struct server_static *server_static;
     struct server_static *server_upload;
+    struct server_dns *server_dns;
 };
 
 static const struct option main_options[] = {
@@ -40,6 +43,7 @@ static const struct option main_options[] = {
 	{ "iam",		1,	NULL,		'I' },
 	{ "static",		1,	NULL,		'S' },
     { "upload",     1,  NULL,       'U' },
+    { "dns",        0,  NULL,       'P' },
 	{ }
 };
 
@@ -57,8 +61,9 @@ void help (const char *argv0) {
             "   -N --nfiles         Limit number of open files\n"
 			"\n"
 			"	-I --iam=username  	Send Iam header\n"
-			"	-S --static=path	Serve static files\n"
-            "   -U --upload=path    Accept PUT files\n"
+			"	-S --static=path	Serve static files from /\n"
+            "   -U --upload=path    Accept PUT files to /upload\n"
+            "   -P --dns            Serve POST requests to /dns-query\n"
 			"\n"
 	, argv0);
 }
@@ -128,7 +133,7 @@ int main (int argc, char **argv)
 	};
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:P", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -176,6 +181,10 @@ int main (int argc, char **argv)
                 options.U = optarg;
                 break;
 
+            case 'P':
+                options.dns = true;
+                break;
+
 			default:
 				help(argv[0]);
 				return 1;
@@ -216,6 +225,13 @@ int main (int argc, char **argv)
 			goto error;
 		}
 	}
+
+    if (options.dns) {
+        if ((err = server_dns_create(&options.server_dns, options.server, "dns-query"))) {
+            log_fatal("server_dns_create");
+            goto error;
+        }
+    }
 
     if (options.iam) {
         if ((err = server_add_header(options.server, "Iam", options.iam))) {

@@ -50,6 +50,7 @@ bin/client: build/src/client.o \
 bin/server: build/src/server.o \
 	build/src/server/server.o \
 	build/src/server/static.o \
+	build/src/server/dns.o \
 	build/src/common/tcp.o build/src/common/tcp_server.o \
 	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \
