@@ -1,14 +1,15 @@
 #include "test.h"
 
-#include "common/url.h"
 #include "common/log.h"
+#include "common/url.h"
+#include "common/util.h"
 
 #include <stdio.h>
 
-struct test_url {
+struct test_parse {
     const char *str;
     const struct url url;
-} tests[] = {
+} parse_tests[] = {
     { "",                   { .host = "" } },
     { "foo",                { .host	= "foo" } },
     { "/foo",               { .path = "foo" } },
@@ -36,12 +37,13 @@ struct test_url {
     { }
 };
 
+
 const char *error_tests[] = {
     // XXX: no more invalid parses?
     NULL
 };
 
-int test_url (struct test_url *test)
+int test_url_parse (struct test_parse *test)
 {
     struct urlbuf urlbuf;
 
@@ -84,6 +86,54 @@ int test_url_error (const char *str)
 	}
 }
 
+struct test_decode {
+    const char *str;
+
+    const char *name;
+    const char *value;
+    const char *query;
+} decode_tests[] = {
+    { "foo",            .name="foo" },
+    { "foo&bar",        .name="foo", .query="bar" },
+    { "foo=bar",        .name="foo", .value="bar" },
+    { "foo=bar&quux",   .name="foo", .value="bar", .query="quux" },
+
+    { }
+};
+
+int test_url_decode (struct test_decode *test)
+{
+    char buf[1024];
+    char *query = buf;
+    const char *name, *value;
+
+    if (str_copy(buf, sizeof(buf), test->str)) {
+        log_error("failed to copy input string");
+        return -1;
+    }
+
+    if (url_decode(&query, &name, &value)) {
+        log_error("failed to decode query");
+        return -1;
+    }
+
+    log_debug("%s: name=%s, value=%s, query=%s", test->str, name, value, query);
+    
+    int err = 0;
+
+    err |= test_string("query", test->query, query);
+    err |= test_string("name", test->name, name);
+    err |= test_string("value", test->value, value);
+
+    if (err) {
+        log_warning("[FAIL] %s", test->str);
+    } else {
+        log_info("[OK] %s", test->str);
+    }
+
+    return err;
+}
+
 int test_arg (const char *str)
 {
     struct urlbuf urlbuf;
@@ -120,13 +170,18 @@ int main (int argc, char **argv)
     } else {
 		log_set_level(LOG_INFO);
 
-        for (struct test_url *test = tests; test->str; test++) {
-            err |= test_url(test);
+        for (struct test_parse *test = parse_tests; test->str; test++) {
+            err |= test_url_parse(test);
         }
 
         for (const char **str = error_tests; *str; str++) {
             err |= test_url_error(*str);
         }
+        
+        for (struct test_decode *test = decode_tests; test->str; test++) {
+            err |= test_url_decode(test);
+        }
+
     }
 
 	return err;

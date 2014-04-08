@@ -37,6 +37,11 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string);
 int url_parse (struct url *url, char *url_string);
 
 /*
+ * Decode a urlencoded key=value pair from the given url, updating the pointer to the next item.
+ */
+int url_decode (char **queryp, const char **namep, const char **valuep);
+
+/*
  * Write out URL to stream.
  */
 void url_dump (const struct url *url, FILE *f);

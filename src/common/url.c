@@ -95,6 +95,48 @@ int url_parse (struct url *url, char *buf)
 	return 0;
 }
 
+int url_decode (char **queryp, const char **namep, const char **valuep)
+{
+    char *query;
+
+    if (!(query = *queryp) || !(*query))
+        // set to NULL on last token
+        return 1;
+
+    enum {
+        NAME,
+        VALUE,
+        NEXT,
+        END,
+    };
+    struct parse parsing[] = {
+        { NAME,         '=',        VALUE,      PARSE_STRING,               .parse_string = namep               },
+        { NAME,         '&',        NEXT,       PARSE_STRING,               .parse_string = namep               },
+        { NAME,         0,          END,        PARSE_STRING,               .parse_string = namep               },
+        { VALUE,        '&',        NEXT,       PARSE_STRING,               .parse_string = valuep              },
+        { VALUE,        0,          END,        PARSE_STRING,               .parse_string = valuep              },
+        { NEXT,         0,          NEXT,       PARSE_STRING,               .parse_string = queryp              },
+
+        { }
+    };
+
+    *queryp = NULL;
+    *namep = NULL;
+    *valuep = NULL;
+
+    switch (parse(parsing, query, NAME)) {
+        case NEXT:
+            return 0;
+
+        case END:
+            // we already know that there is no following token.. but this is more convenient
+            return 0;
+
+        default:
+            return -1;
+    }
+}
+
 void url_dump (const struct url *url, FILE *f)
 {
 	if (url->scheme) {
