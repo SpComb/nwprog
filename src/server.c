@@ -224,14 +224,14 @@ int main (int argc, char **argv)
 
     // more-specifics first!
 	if (options.U) {
-		if ((err = server_static_create(&options.server_upload, options.U, options.server, "upload", SERVER_STATIC_PUT))) {
+		if ((err = server_static_create(&options.server_upload, options.U, options.server, "upload/", SERVER_STATIC_PUT))) {
 			log_fatal("server_static_create: %s", options.U);
 			goto error;
 		}
 	}
 
     if (options.dns) {
-        if ((err = server_dns_create(&options.server_dns, options.server, "dns-query",
+        if ((err = server_dns_create(&options.server_dns, options.server, "dns-query/",
                 options.resolver
         ))) {
             log_fatal("server_dns_create");

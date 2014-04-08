@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>DNS Query</title>
+
+		<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
+		
+		<style type="text/css">
+div.testing {
+	width: 50%;
+	text-align: center;
+	margin: 5em auto;
+}
+		</style>
+	</head>
+    <body>
+        <div class="container">
+			<h1>DNS Query <h1>
+            
+            <form action="/dns-query/" method="POST">
+                <div class="form-group">
+                    <label for="dns-query-name">Name</label>
+                    <input name="name" type="text" class="form-control" id="dns-query-name" placeholder="example.com">
+                </div>
+                <div class="form-group">
+                    <label for="dns-query-type">Type</label>
+                    <select name="type" id="dns-query-type" class="form-control">
+                        <option>A</option>
+                        <option>AAAA</option>
+                        <option>CNAME</option>
+                        <option>PTR</option>
+                        <option>NS</option>
+                        <option>MX</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-default">Submit</button>
+            </form>
+		</div>
+
+		<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+		<script src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
+	</body>
+</html>
