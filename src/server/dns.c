@@ -3,6 +3,8 @@
 #include "common/log.h"
 #include "../dns.h" // XXX: terrible naming failure
 
+#include <string.h>
+
 struct server_dns {
 	/* Embed */
 	struct server_handler handler;
@@ -11,11 +13,61 @@ struct server_dns {
     struct dns *dns;
 };
 
+int server_dns_lookup (struct server_client *client, const char *name, const char *type)
+{
+    if (!name)
+        return server_response_error(client, 400, NULL, "Missing required <tt>name=...</tt> parameter");
+
+    if (!type)
+        type = "A";
+
+    server_response(client, 200, NULL);
+    server_response_header(client, "Content-Type", "text/plain");
+    server_response_print(client, "%s %s? ...\n", name, type);
+}
+
 int server_dns_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
 	struct server_dns *s = (void *) handler;
+    const char *name = NULL, *type = NULL;
+    int err;
 
-    return 400;
+    // read request
+    const char *header, *value;
+    log_info("%s", url->query);
+
+    while (!(err = server_request_header(client, &header, &value))) {
+
+    }
+
+    if (err < 0) {
+        log_error("server_request_header");
+        return err;
+    }
+
+    // parse url query
+    char *query = url->query; // XXX: constness
+    const char *key;
+
+    while (!(err = url_decode(&query, &key, &value))) {
+        if (!strcasecmp(key, "name")) {
+            log_info("name=%s", value);
+            name = value;
+        } else if (!strcasecmp(key, "type")) {
+            log_info("type=%s", type);
+            type = value;
+        } else {
+            log_info("%s?", key);
+        }
+    }
+
+    if (err < 0) {
+        log_error("url_decode");
+        return err;
+    }
+
+    // handle
+    return server_dns_lookup(client, name, type);
 }
 
 int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver)
