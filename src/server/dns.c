@@ -1,20 +1,24 @@
 #include "server/dns.h"
 
 #include "common/log.h"
+#include "../dns.h" // XXX: terrible naming failure
 
 struct server_dns {
 	/* Embed */
 	struct server_handler handler;
+
+    /* Shared across requests */
+    struct dns *dns;
 };
 
 int server_dns_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
-	struct server_dns *s = (struct server_static *) handler;
+	struct server_dns *s = (void *) handler;
 
     return 400;
 }
 
-int server_dns_create (struct server_dns **sp, struct server *server, const char *path)
+int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver)
 {
 	struct server_dns *s;
 
@@ -29,6 +33,11 @@ int server_dns_create (struct server_dns **sp, struct server *server, const char
 
 	if (server_add_handler(server, "GET", path, &s->handler)) {
         log_error("server_add_handler");
+        goto error;
+    }
+    
+    if (dns_create(s->handler.event_main, &s->dns, resolver)) {
+        log_error("dns_create: %s", resolver);
         goto error;
     }
 

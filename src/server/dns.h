@@ -7,8 +7,10 @@ struct server_dns;
 
 /*
  * Initialize and mount onto the given server path.
+ *
+ * resolver:    passed to dns_create(), may be NULL.
  */
-int server_dns_create (struct server_dns **sp, struct server *server, const char *path);
+int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver);
 
 /*
  * Release all associated resources.

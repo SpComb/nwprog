@@ -22,6 +22,7 @@ struct options {
 	const char *S;
     const char *U;
     bool dns;
+    const char *resolver;
 
     /* Processed */
     struct server *server;
@@ -44,6 +45,9 @@ static const struct option main_options[] = {
 	{ "static",		1,	NULL,		'S' },
     { "upload",     1,  NULL,       'U' },
     { "dns",        0,  NULL,       'P' },
+
+    { "resolver",   1,  NULL,       'R' },
+
 	{ }
 };
 
@@ -64,6 +68,8 @@ void help (const char *argv0) {
 			"	-S --static=path	Serve static files from /\n"
             "   -U --upload=path    Accept PUT files to /upload\n"
             "   -P --dns            Serve POST requests to /dns-query\n"
+            "\n"
+            "   -R --resolver       DNS resolver address\n"
 			"\n"
 	, argv0);
 }
@@ -129,11 +135,11 @@ int main (int argc, char **argv)
 	enum log_level log_level = LOG_WARNING;
 	int err = 0;
 	struct options options = {
-		.iam	= getlogin(),
+		.iam	    = getlogin(),
 	};
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:P", main_options, &longopt)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:PR:", main_options, &longopt)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -185,6 +191,10 @@ int main (int argc, char **argv)
                 options.dns = true;
                 break;
 
+            case 'R':
+                options.resolver = optarg;
+                break;
+
 			default:
 				help(argv[0]);
 				return 1;
@@ -221,7 +231,9 @@ int main (int argc, char **argv)
 	}
 
     if (options.dns) {
-        if ((err = server_dns_create(&options.server_dns, options.server, "dns-query"))) {
+        if ((err = server_dns_create(&options.server_dns, options.server, "dns-query",
+                options.resolver
+        ))) {
             log_fatal("server_dns_create");
             goto error;
         }

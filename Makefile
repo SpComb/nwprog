@@ -51,7 +51,9 @@ bin/server: build/src/server.o \
 	build/src/server/server.o \
 	build/src/server/static.o \
 	build/src/server/dns.o \
+	build/src/dns/dns.o build/src/dns/pack.o build/src/dns/unpack.o build/src/dns/resolve.o \
 	build/src/common/tcp.o build/src/common/tcp_server.o \
+	build/src/common/udp.o \
 	build/src/common/sock.o build/src/common/event.o \
 	build/src/common/http.o build/src/common/stream.o \
 	build/src/common/url.o build/src/common/parse.o \
