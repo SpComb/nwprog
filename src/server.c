@@ -212,16 +212,10 @@ int main (int argc, char **argv)
         goto error;
 	}
 
+    // more-specifics first!
 	if (options.U) {
 		if ((err = server_static_create(&options.server_upload, options.U, options.server, "upload", SERVER_STATIC_PUT))) {
 			log_fatal("server_static_create: %s", options.U);
-			goto error;
-		}
-	}
-
-	if (options.S) {
-		if ((err = server_static_create(&options.server_static, options.S, options.server, "", SERVER_STATIC_GET))) {
-			log_fatal("server_static_add: %s", "/");
 			goto error;
 		}
 	}
@@ -233,6 +227,14 @@ int main (int argc, char **argv)
         }
     }
 
+	if (options.S) {
+		if ((err = server_static_create(&options.server_static, options.S, options.server, "", SERVER_STATIC_GET))) {
+			log_fatal("server_static_add: %s", "/");
+			goto error;
+		}
+	}
+
+    // headers
     if (options.iam) {
         if ((err = server_add_header(options.server, "Iam", options.iam))) {
             log_fatal("server_add_header: Iam: %s", options.iam);
