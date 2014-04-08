@@ -23,6 +23,13 @@ typedef void (tcp_server_handler)(struct tcp_server *server, struct tcp *tcp, vo
 int tcp_listen (int *sockp, const char *host, const char *port, int backlog);
 
 /*
+ * Open a TCP client socket, connected to the given host/port.
+ *
+ * Passing in an event_main will perform a non-blocking/async connect.
+ */
+int tcp_connect (struct event_main *event_main, int *sockp, const char *host, const char *port);
+
+/*
  * Run a server for accepting connections..
  */
 int tcp_server (struct event_main *event_main, struct tcp_server **serverp, const char *host, const char *port);

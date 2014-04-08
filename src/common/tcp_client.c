@@ -12,7 +12,7 @@
 /*
  * Open a TCP socket connected to the given addr.
  */
-int tcp_connect (struct event_main *event_main, int *sockp, struct addrinfo *addr)
+int tcp_connect_async (struct event_main *event_main, int *sockp, struct addrinfo *addr)
 {
     struct event *event = NULL;
     int sock;
@@ -65,9 +65,8 @@ error:
     return err;
 }
 
-int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *host, const char *port)
+int tcp_connect (struct event_main *event_main, int *sockp, const char *host, const char *port)
 {
-	int sock;
 	int err;
 	struct addrinfo hints = {
 		.ai_flags		= 0,
@@ -82,25 +81,37 @@ int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *ho
 		return -1;
 	}
 
+    // pre-set err in case of empty addrs
+    err = 1;
+
 	for (addr = addrs; addr; addr = addr->ai_next) {
         log_info("%s:%s: %s...", host, port, sockaddr_str(addr->ai_addr, addr->ai_addrlen));
 
-        if ((err = tcp_connect(event_main, &sock, addr))) {
-            log_perror("%s:%s", addr->ai_canonname, port);
+        if ((err = tcp_connect_async(event_main, sockp, addr))) {
+            log_perror("%s:%s: %s", host, port, sockaddr_str(addr->ai_addr, addr->ai_addrlen));
             continue;
         }
     
-        log_info("%s:%s: %s <- %s", host, port, sockpeer_str(sock), sockname_str(sock));
+        log_info("%s:%s: %s <- %s", host, port, sockpeer_str(*sockp), sockname_str(*sockp));
 
         break;
 	}
 
 	freeaddrinfo(addrs);
 
-    if (sock < 0)
+    return err;
+}
+
+int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *host, const char *port)
+{
+	int sock;
+
+	if (tcp_connect(event_main, &sock, host, port)) {
+        log_pwarning("tcp_create: %s:%s", host, port);
         return -1;
-
+    }
+    
     log_debug("%d", sock);
-
-	return tcp_create(event_main, tcpp, sock);
+            
+    return tcp_create(event_main, tcpp, sock);
 }
