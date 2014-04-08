@@ -70,7 +70,9 @@ bin/dns: build/src/dns.o \
 bin/test-url: \
 	build/test/url.o \
 	build/test/test.o \
-	build/src/common/url.o build/src/common/parse.o build/src/common/log.o
+	build/src/common/url.o build/src/common/parse.o \
+	build/src/common/util.o \
+	build/src/common/log.o
 
 bin/test-http: \
 	build/test/http.o \

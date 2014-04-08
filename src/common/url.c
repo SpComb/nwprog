@@ -95,9 +95,31 @@ int url_parse (struct url *url, char *buf)
 	return 0;
 }
 
+int url_unquote (char *str)
+{
+    const char *in = str;
+    char *out = str;
+    char c;
+    
+    while ((c = *in++)) {
+        switch (c) {
+            case '+':
+                *out++ = ' ';
+                break;
+            
+            default:
+                *out++ = c;
+                break;
+        }
+    }
+
+    return 0;
+}
+
 int url_decode (char **queryp, const char **namep, const char **valuep)
 {
     char *query;
+    char *name = NULL, *value = NULL, *next = NULL;
 
     if (!(query = *queryp) || !(*query))
         // set to NULL on last token
@@ -108,23 +130,35 @@ int url_decode (char **queryp, const char **namep, const char **valuep)
         VALUE,
         NEXT,
         END,
-    };
+    } state;
     struct parse parsing[] = {
-        { NAME,         '=',        VALUE,      PARSE_STRING,               .parse_string = namep               },
-        { NAME,         '&',        NEXT,       PARSE_STRING,               .parse_string = namep               },
-        { NAME,         0,          END,        PARSE_STRING,               .parse_string = namep               },
-        { VALUE,        '&',        NEXT,       PARSE_STRING,               .parse_string = valuep              },
-        { VALUE,        0,          END,        PARSE_STRING,               .parse_string = valuep              },
-        { NEXT,         0,          NEXT,       PARSE_STRING,               .parse_string = queryp              },
+        { NAME,         '=',        VALUE,      PARSE_STRING,               .parse_string = &name               },
+        { NAME,         '&',        NEXT,       PARSE_STRING,               .parse_string = &name               },
+        { NAME,         0,          END,        PARSE_STRING,               .parse_string = &name               },
+
+        { VALUE,        '&',        NEXT,       PARSE_STRING,               .parse_string = &value              },
+        { VALUE,        0,          END,        PARSE_STRING,               .parse_string = &value              },
+
+        { NEXT,         0,          NEXT,       PARSE_STRING,               .parse_string = &next               },
 
         { }
     };
 
-    *queryp = NULL;
-    *namep = NULL;
-    *valuep = NULL;
+    state = parse(parsing, query, NAME);
+    
+    // unquote?
+    if (name)
+        url_unquote(name);
 
-    switch (parse(parsing, query, NAME)) {
+    if (value)
+        url_unquote(value);
+
+    // return
+    *queryp = next;
+    *namep = name;
+    *valuep = value;
+
+    switch (state) {
         case NEXT:
             return 0;
 

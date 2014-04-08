@@ -37,7 +37,16 @@ int urlbuf_parse (struct urlbuf *urlbuf, const char *url_string);
 int url_parse (struct url *url, char *url_string);
 
 /*
- * Decode a urlencoded key=value pair from the given url, updating the pointer to the next item.
+ * Unquote any %HH or + -quoted url string in-place.
+ */
+int url_unquote (char *str);
+
+/*
+ * Decode a urlencoded key=value pair from the given url, updating the pointer to the next item, or NULL.
+ *
+ * This will also unquote the name/value.
+ *
+ * Returns 1 on end-of-keyvalues, 0 on name/value, -1 on error.
  */
 int url_decode (char **queryp, const char **namep, const char **valuep);
 

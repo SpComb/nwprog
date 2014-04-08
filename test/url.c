@@ -97,6 +97,9 @@ struct test_decode {
     { "foo&bar",        .name="foo", .query="bar" },
     { "foo=bar",        .name="foo", .value="bar" },
     { "foo=bar&quux",   .name="foo", .value="bar", .query="quux" },
+    
+    { "foo+bar",                .name="foo bar" },
+    { "foo+bar=asdf&quux+magic",      .name="foo bar", .value="asdf", .query="quux+magic" },
 
     { }
 };
