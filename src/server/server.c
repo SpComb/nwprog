@@ -589,21 +589,24 @@ int server_response_redirect (struct server_client *client, const char *host, co
 	return 0;
 }
 
-int server_response_error (struct server_client *client, enum http_status status, const char *reason)
+int server_response_error (struct server_client *client, enum http_status status, const char *reason, const char *detail)
 {
+    int err = 0;
+
     if (!reason)
 		reason = http_status_str(status);
 
-    if ((
-                server_response(client, status, reason)
-            ||  server_response_header(client, "Content-Type", "text/html")
-            ||  server_response_print(client, "<html><head><title>HTTP %d %s</title></head>\n", status, reason)
-            ||  server_response_print(client, "<body><h1>HTTP %d %s</h1></body>", status, reason)
-            ||  server_response_print(client, "</html>\n")
-    ))
-        return -1;
+    err |= server_response(client, status, reason);
+    err |= server_response_header(client, "Content-Type", "text/html");
+    err |= server_response_print(client, "<html><head><title>HTTP %d %s</title></head><body>\n", status, reason);
+    err |= server_response_print(client, "<h1>HTTP %d %s</h1>", status, reason);
+    
+    if (detail)
+        err |= server_response_print(client, "<p>%s</p>", detail);
 
-    return 0;
+    err |= server_response_print(client, "</body></html>\n");
+
+    return err;
 }
 
 /*
@@ -692,7 +695,7 @@ error:
 
 	} else if (status) {
         // send full response
-		if (server_response_error(client, status, NULL)) {
+		if (server_response_error(client, status, NULL, NULL)) {
 			log_warning("failed to send response status");
 			err = -1;
 		}

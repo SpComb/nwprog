@@ -96,7 +96,7 @@ int server_response_redirect (struct server_client *client, const char *host, co
 /*
  * Send a complete (very basic) HTML-formatted HTTP error status response.
  */
-int server_response_error (struct server_client *client, enum http_status status, const char *reason);
+int server_response_error (struct server_client *client, enum http_status status, const char *reason, const char *detail);
 
 /*
  * Process client requests.
