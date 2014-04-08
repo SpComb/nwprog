@@ -95,6 +95,32 @@ int url_parse (struct url *url, char *buf)
 	return 0;
 }
 
+int url_unquote_hex (const char **inp, char **outp)
+{
+    // read in first two chars of hh, with the short-circuited && taking care of any NULs
+    char buf[3] = { };
+
+    if (!((buf[0] = *(*inp)++) && (buf[1] = *(*inp)++))) {
+        // premature end-of-string
+        return 1;
+    }
+
+    // decode
+    unsigned int value;
+
+    if (sscanf(buf, "%x", &value) != 1)
+        // non-hex escape
+        return 1;
+    
+    if (!value)
+        // inserting NUL?
+        return 1;
+
+    *(*outp)++ = value;
+
+    return 0;
+}
+
 int url_unquote (char *str)
 {
     const char *in = str;
@@ -107,11 +133,19 @@ int url_unquote (char *str)
                 *out++ = ' ';
                 break;
             
+            case '%':
+                if (url_unquote_hex(&in, &out))
+                    return -1;
+                break;
+
             default:
                 *out++ = c;
                 break;
         }
     }
+
+    // terminate
+    *out = '\0';
 
     return 0;
 }

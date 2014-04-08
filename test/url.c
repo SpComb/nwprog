@@ -98,8 +98,12 @@ struct test_decode {
     { "foo=bar",        .name="foo", .value="bar" },
     { "foo=bar&quux",   .name="foo", .value="bar", .query="quux" },
     
-    { "foo+bar",                .name="foo bar" },
-    { "foo+bar=asdf&quux+magic",      .name="foo bar", .value="asdf", .query="quux+magic" },
+    { "foo+bar",                    .name="foo bar" },
+    { "foo+bar=asdf&quux+magic",    .name="foo bar", .value="asdf", .query="quux+magic" },
+
+    { "foo%20bar",                  .name="foo bar" },
+    { "foo%20bar=asdf",             .name="foo bar", .value="asdf" },
+    { "foo%3Dbar=asdf%26quux",      .name="foo=bar", .value="asdf&quux" },
 
     { }
 };
