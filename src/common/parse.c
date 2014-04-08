@@ -132,7 +132,7 @@ int tokenize (char *buf, size_t bufsize, const struct parse *parsing, const char
             // token continues
             *out++ = c;
         
-        } else if (p && (p->type && PARSE_SKIP)) {
+        } else if (p && (p->type & PARSE_SKIP)) {
             // omit
 
         } else {
