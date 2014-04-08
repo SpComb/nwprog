@@ -17,6 +17,10 @@ struct server_client;
  * Request handler.
  */
 struct server_handler {
+    /* Server state, set by server_add_handler */
+    struct event_main *event_main;
+
+    /* Handler implementation */
 	int (*request)(struct server_handler *handler, struct server_client *client, const char *method, const struct url *url);
 };
 

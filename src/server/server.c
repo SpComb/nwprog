@@ -156,6 +156,9 @@ int server_add_handler (struct server *server, const char *method, const char *p
 
 	TAILQ_INSERT_TAIL(&server->handlers, h, server_handlers);
 
+    // export state to handler
+    handler->event_main = server->event_main;
+
 	return 0;
 }
 
