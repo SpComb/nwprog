@@ -73,11 +73,20 @@ struct server_client {
         /* Does the client support HTTP/1.1? */
         bool http11;
 
+        /* Content is application/x-www-form-urlencoded */
+        bool content_form;
+
         /* Progress */
         bool request;
         bool header;
         bool headers;
         bool body;
+
+        /* XXX: Decoding GET params in-place from url.query */
+        char *get_query;
+
+        /* Decoding POST params */
+        char *post_form;
 
     } request;
 	
@@ -283,7 +292,19 @@ int server_request (struct server_client *client)
         log_warning("unknown request version: %s", version);
     }
 
+    if (strcasecmp(method, "GET") == 0) {
+        // XXX: decoded in-place, stripping const
+        client->request.get_query = (char *) client->request.url.query;
+    }
+
 	return 0;
+}
+
+int server_request_query (struct server_client *client, const char **keyp, const char **valuep)
+{
+    log_debug("%s", client->request.get_query);
+
+    return url_decode(&client->request.get_query, keyp, valuep);
 }
 
 int server_request_header (struct server_client *client, const char **namep, const char **valuep)
@@ -352,9 +373,61 @@ int server_request_header (struct server_client *client, const char **namep, con
         } else {
             log_warning("unknown connection header: %s", *valuep);
         }
+
+    } else if (strcasecmp(*namep, "Content-Type") == 0) {
+        if (strcasecmp(*valuep, "application/x-www-form-urlencoded") == 0) {
+            log_debug("request content is form data");
+
+            client->request.content_form = true;
+        }
     }
 	
 	return 0;
+}
+
+int server_request_form (struct server_client *client, const char **keyp, const char **valuep)
+{
+    if (!client->request.headers) {
+        log_fatal("reading request form data before headers?");
+        return -1;
+    }
+
+    if (client->request.post_form) {
+        // continue using it
+
+    } else if (client->request.body) {
+        // have already read in body
+        return 1;
+
+    } else if (!client->request.content_length) {
+        // no request body
+        return 411;
+    
+    } else {
+        // read in request body; either exactly content_length or to EOF
+        if (http_read_string(client->http, &client->request.post_form, client->request.content_length)) {
+            log_warning("http_read_string");
+            return -1;
+        }
+
+        client->request.body = true;
+    }
+    
+    log_debug("%s", client->request.post_form);
+    
+    return url_decode(&client->request.post_form, keyp, valuep);
+}
+
+int server_request_param (struct server_client *client, const char **keyp, const char **valuep)
+{
+    int err;
+
+    if (client->request.get_query)
+        return server_request_query(client, keyp, valuep);
+    else if (client->request.content_form)
+        return server_request_form(client, keyp, valuep);
+    else
+        return 1;
 }
 
 int server_request_file (struct server_client *client, int fd)

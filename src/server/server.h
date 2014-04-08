@@ -49,11 +49,32 @@ int server_add_handler (struct server *server, const char *method, const char *p
 int server_add_header (struct server *server, const char *name, const char *value);
 
 /*
+ * Read request URL query param.
+ *
+ * Returns 1 on end-of-params.
+ */
+int server_request_query (struct server_client *client, const char **keyp, const char **valuep);
+
+/*
  * Read request header.
  *
  * Returns 1 on end-of-headers.
  */
 int server_request_header (struct server_client *client, const char **name, const char **value);
+
+/*
+ * Read request body form param.
+ *
+ * Returns 1 on end-of-params.
+ */
+int server_request_form (struct server_client *client, const char **keyp, const char **valuep);
+
+/*
+ * Read in request parameters, both GET and POST.
+ *
+ * Returns 1 on end-of-params.
+ */
+int server_request_param (struct server_client *client, const char **keyp, const char **valuep);
 
 /*
  * Read request body from client into FILE.

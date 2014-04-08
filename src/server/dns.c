@@ -45,11 +45,10 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
         return err;
     }
 
-    // parse url query
-    char *query = url->query; // XXX: constness
+    // parse GET/POST parameters
     const char *key;
-
-    while (!(err = url_decode(&query, &key, &value))) {
+    
+    while (!(err = server_request_param(client, &key, &value))) {
         if (!strcasecmp(key, "name")) {
             log_info("name=%s", value);
             name = value;
@@ -84,7 +83,12 @@ int server_dns_create (struct server_dns **sp, struct server *server, const char
     log_info("GET %s", path);
 
 	if (server_add_handler(server, "GET", path, &s->handler)) {
-        log_error("server_add_handler");
+        log_error("server_add_handler: GET");
+        goto error;
+    }
+	
+    if (server_add_handler(server, "POST", path, &s->handler)) {
+        log_error("server_add_handler: POST");
         goto error;
     }
     
