@@ -13,17 +13,79 @@ struct server_dns {
     struct dns *dns;
 };
 
-int server_dns_lookup (struct server_client *client, const char *name, const char *type)
+int server_dns_lookup (struct server_dns *s, struct server_client *client, const char *name, const char *type)
 {
+    int err;
+    enum dns_type qtype;
+
+    // parameters
     if (!name)
         return server_response_error(client, 400, NULL, "Missing required <tt>name=...</tt> parameter");
 
     if (!type)
         type = "A";
 
-    server_response(client, 200, NULL);
+    if (dns_type_parse(&qtype, type))
+        return server_response_error(client, 400, NULL, "Invalid <tt>type=...</tt> parameter");
+
+    // resolve
+    struct dns_resolve *resolve;
+
+    if ((err = dns_resolve(s->dns, &resolve, name, qtype)) < 0) {
+        log_error("dns_resolve: %s", name);
+        return 500;
+    }
+
+    // response
+    if (err) {
+        log_warning("dns_resolve: %s: %d", name, err);
+        server_response(client, 400, NULL);
+    } else {
+        server_response(client, 200, NULL);
+    }
+
     server_response_header(client, "Content-Type", "text/plain");
-    server_response_print(client, "%s %s? ...\n", name, type);
+    
+    // output question
+    struct dns_question qq;
+            
+    server_response_print(client, ";; %s\n", dns_section_str(DNS_QD));
+
+    while (!(err = dns_resolve_question(resolve, &qq))) {
+        server_response_print(client, "; %-30s %-5s %-10s\n", qq.qname, dns_class_str(qq.qclass), dns_type_str(qq.qtype));
+    }
+
+    // output response
+    enum dns_section section;
+    struct dns_record rr;
+    union dns_rdata rdata;
+    enum dns_section current = -1;
+
+    while (!(err = dns_resolve_record(resolve, &section, &rr, &rdata))) {
+        const char *str = dns_rdata_str(&rr, &rdata);
+
+        if (section != current) {
+            server_response_print(client, ";; %s\n", dns_section_str(section));
+            current = section;
+        }
+
+        server_response_print(client, "%-32s %-5s %-10s %s\n", rr.name, dns_class_str(rr.class), dns_type_str(rr.type), str);
+/*
+        if (section == DNS_AN && rr.type == DNS_CNAME) {
+            server_response_print(client, "%s is an alias for %s\n", rr.name, str);
+        } else if (section == DNS_AN && rr.type == DNS_A) {
+            server_response_print(client, "%s has address %s\n", rr.name, str);
+        } else if (section == DNS_AN && rr.type == DNS_AAAA) {
+            server_response_print(client, "%s has IPv6 address %s\n", rr.name, str);
+        } else if (section == DNS_AN && rr.type == DNS_MX) {
+            server_response_print(client, "%s mail is handled by %u %s\n", rr.name, rdata.MX.preference, rdata.MX.exchange);
+        }
+*/
+    }
+
+    dns_close(resolve);
+
+    return 0;
 }
 
 int server_dns_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
@@ -66,7 +128,7 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
     }
 
     // handle
-    return server_dns_lookup(client, name, type);
+    return server_dns_lookup(s, client, name, type);
 }
 
 int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver)
