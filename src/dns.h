@@ -52,6 +52,8 @@ enum dns_type {
 
     DNS_QTYPE_AXFR  = 252,
     DNS_QTYPE_ANY   = 255,
+
+    DNS_TYPE_MAX,
 };
 
 enum dns_class {
@@ -67,6 +69,16 @@ enum dns_section {
     DNS_AA,     // authority
     DNS_AR,     // additional
 };
+
+/* enum -> static char * */
+const char * dns_opcode_str (enum dns_opcode opcode);
+const char * dns_rcode_str (enum dns_rcode rcode);
+const char * dns_type_str (enum dns_type type);
+const char * dns_class_str (enum dns_class class);
+const char * dns_section_str (enum dns_section section);
+
+/* char * -> dns_type */
+int dns_type_parse (enum dns_type *typep, const char *str);
 
 /*
  * Fixed-size header.
@@ -125,6 +137,9 @@ union dns_rdata {
         char        exchange[DNS_NAME];
     } MX;
 };
+
+/* rdata -> static char * representation of it (literal IPv4/IPv6 address etc) */
+const char * dns_rdata_str (struct dns_record *rr, union dns_rdata *rdata);
 
 /*
  * DNS resolver.

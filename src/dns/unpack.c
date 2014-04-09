@@ -1,6 +1,7 @@
 #include "dns/dns.h"
 
 #include "common/log.h"
+#include "common/util.h"
 
 #include <arpa/inet.h>
 #include <string.h>
@@ -262,4 +263,44 @@ int dns_unpack_rdata (struct dns_packet *pkt, struct dns_record *rr, union dns_r
     pkt->end = pkt_end;
 
     return err;
+}
+
+const char * dns_rdata_str (struct dns_record *rr, union dns_rdata *rdata)
+{
+    // INET_ADDRSTRLEN < INET6_ADDRSTRLEN < 1KB
+    // DNS_NAME < 1KB
+    static char buf[1024];
+
+    switch (rr->type) {
+        case DNS_A:
+            if (!inet_ntop(AF_INET, &rdata->A, buf, sizeof(buf))) {
+                log_warning("inet_ntop");
+                return NULL;
+            }
+
+            return buf;
+
+        case DNS_AAAA:
+            if (!inet_ntop(AF_INET6, &rdata->A, buf, sizeof(buf))) {
+                log_warning("inet_ntop");
+                return NULL;
+            }
+            
+            return buf;
+
+        case DNS_NS:
+            return str_fmt(buf, sizeof(buf), "%s", rdata->NS);
+
+        case DNS_CNAME:
+            return str_fmt(buf, sizeof(buf), "%s", rdata->CNAME);
+
+        case DNS_PTR:
+            return str_fmt(buf, sizeof(buf), "%s", rdata->PTR);
+
+        case DNS_MX:
+            return str_fmt(buf, sizeof(buf), "%d:%s", rdata->MX.preference, rdata->MX.exchange);
+
+        default:
+            return str_fmt(buf, sizeof(buf), "%d:..", rr->rdlength);
+    }
 }

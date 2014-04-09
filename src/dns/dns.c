@@ -2,9 +2,11 @@
 #include "dns/dns.h"
 
 #include "common/log.h"
+#include "common/util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 const char * dns_opcode_str (enum dns_opcode opcode)
 {
@@ -39,28 +41,44 @@ const char * dns_class_str (enum dns_class class)
     }
 }
 
+const char *dns_type_strs[DNS_TYPE_MAX] = {
+    [DNS_A]         = "A",
+    [DNS_NS]        = "NS",
+    [DNS_CNAME]		= "DNS_CNAME",
+    [DNS_SOA]		= "DNS_SOA",
+    [DNS_PTR]		= "DNS_PTR",
+    [DNS_MX]		= "DNS_MX",          
+    [DNS_TXT]		= "DNS_TXT",         
+
+    [DNS_AAAA]      = "AAAA",
+
+    [DNS_QTYPE_AXFR]    = "AXFR",
+    [DNS_QTYPE_ANY]     = "ANY",
+};
+
 const char * dns_type_str (enum dns_type type)
 {
-    static char buf[32];
+    if (type >= DNS_TYPE_MAX) {
+        return NULL;
+    } else if (dns_type_strs[type]) {
+        return dns_type_strs[type];
+    } else {
+        static char buf[32];
 
-    switch (type) {
-        case DNS_A:	            return "A";
-        case DNS_NS:	        return "NS";
-        case DNS_CNAME:	        return "CNAME";
-        case DNS_SOA:	        return "SOA";
-        case DNS_PTR:	        return "PTR";
-        case DNS_MX:	        return "MX";
-        case DNS_TXT:	        return "TXT";
-
-        case DNS_AAAA:          return "AAAA";
-
-        case DNS_QTYPE_AXFR:    return "AXFR";
-        case DNS_QTYPE_ANY:	    return "ANY";
-
-        default:
-            snprintf(buf, sizeof(buf), "%d", type);
-            return buf;
+        return str_fmt(buf, sizeof(buf), "%d", type);
     }
+}
+
+int dns_type_parse (enum dns_type *typep, const char *str)
+{
+    for (enum dns_type type = 0; type < DNS_TYPE_MAX; type++) {
+        if (dns_type_strs[type] && strcasecmp(dns_type_strs[type], str) == 0) {
+            *typep = type;
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 const char * dns_section_str (enum dns_section section)

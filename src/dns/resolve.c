@@ -481,49 +481,7 @@ int dns_resolve_record (struct dns_resolve *resolve, enum dns_section *sectionp,
             return -1;
         }
 
-        switch (rr->type) {
-            case DNS_A: {
-                char buf[INET_ADDRSTRLEN];
-
-                if (!inet_ntop(AF_INET, &rdata->A, buf, sizeof(buf))) {
-                    log_warning("inet_ntop");
-                } else {
-                    log_qinfo("%s", buf);
-                }
-
-            } break;
-
-            case DNS_AAAA: {
-                char buf[INET6_ADDRSTRLEN];
-
-                if (!inet_ntop(AF_INET6, &rdata->A, buf, sizeof(buf))) {
-                    log_warning("inet_ntop");
-                } else {
-                    log_qinfo("%s", buf);
-                }
-
-            } break;
-
-            case DNS_NS:
-                log_qinfo("%s", rdata->NS);
-                break;
-
-            case DNS_CNAME:
-                log_qinfo("%s", rdata->CNAME);
-                break;
-
-            case DNS_PTR:
-                log_qinfo("%s", rdata->PTR);
-                break;
-
-            case DNS_MX:
-                log_qinfo("%d:%s", rdata->MX.preference, rdata->MX.exchange);
-                break;
-
-            default:
-                log_qinfo("%d:...", rr->rdlength);
-                break;
-        }
+        log_qinfo("%s", dns_rdata_str(rr, rdata));
     }
 
     return 0;
