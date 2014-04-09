@@ -78,3 +78,20 @@ int str_uint (const char *str, unsigned *uintp)
 
     return 0;
 }
+
+const char * str_fmt (char *buf, size_t len, const char *fmt, ...)
+{
+    va_list args;
+    int ret;
+
+    va_start(args, fmt);
+    ret = vsnprintf(buf, len, fmt, args);
+    va_end(args);
+
+    if (ret >= len) {
+        log_warning("truncated: %s -> %d", fmt, ret);
+        return NULL;
+    }
+
+    return buf;
+}

@@ -22,4 +22,11 @@ int str_copy (char *buf, size_t size, const char *str);
 int str_int (const char *str, int *intp);
 int str_uint (const char *str, unsigned *uintp);
 
+/*
+ * Format to output buf, returning output buf on success, NULL on truncation..
+ *
+ * XXX: just truncate output instead?
+ */
+const char * str_fmt (char *buf, size_t len, const char *fmt, ...);
+
 #endif
