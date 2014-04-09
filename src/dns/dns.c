@@ -44,11 +44,11 @@ const char * dns_class_str (enum dns_class class)
 const char *dns_type_strs[DNS_TYPE_MAX] = {
     [DNS_A]         = "A",
     [DNS_NS]        = "NS",
-    [DNS_CNAME]		= "DNS_CNAME",
-    [DNS_SOA]		= "DNS_SOA",
-    [DNS_PTR]		= "DNS_PTR",
-    [DNS_MX]		= "DNS_MX",          
-    [DNS_TXT]		= "DNS_TXT",         
+    [DNS_CNAME]		= "CNAME",
+    [DNS_SOA]		= "SOA",
+    [DNS_PTR]		= "PTR",
+    [DNS_MX]		= "MX",          
+    [DNS_TXT]		= "TXT",         
 
     [DNS_AAAA]      = "AAAA",
 
