@@ -160,16 +160,20 @@ int dns_query (struct dns *dns, struct dns_packet *packet, const struct dns_head
     return 0;
 }
 
-int dns_response (struct dns *dns, struct dns_packet *packet, struct dns_header *header)
+int dns_response (struct dns *dns, struct dns_packet *packet, struct dns_header *header, const struct timeval *timeout)
 {
     int err;
 
     // recv
     size_t size = sizeof(packet->buf);
 
-    if ((err = udp_read(dns->udp, packet->buf, &size, NULL))) {
+    if ((err = udp_read(dns->udp, packet->buf, &size, timeout)) < 0) {
         log_warning("udp_read");
         return -1;
+
+    } else if (err) {
+        log_warning("timeout");
+        return err;
     }
 
     packet->ptr = packet->buf;

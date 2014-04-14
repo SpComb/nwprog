@@ -60,7 +60,9 @@ int dns_query (struct dns *dns, struct dns_packet *packet, const struct dns_head
 
 /*
  * Recv a DNS response, unpacking the header.
+ *
+ * Returns 1 on timeout, <0 on error, 0 on success.
  */
-int dns_response (struct dns *dns, struct dns_packet *packet, struct dns_header *header);
+int dns_response (struct dns *dns, struct dns_packet *packet, struct dns_header *header, const struct timeval *timeout);
 
 #endif
