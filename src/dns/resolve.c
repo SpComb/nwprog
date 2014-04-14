@@ -225,21 +225,27 @@ int dns_resolve_response (struct dns *dns, struct dns_resolve **resolvep)
     if ((err = timeout_from_timestamp(&timeout, &resolve->timeout)) < 0) {
         log_error("timeout_from_timestamp");
         return -1;
+
+    } else if (err) {
+        // we presumeably have multiple resolves timeouting ~simultaneously
+        // keep err set for the skip-dns_response() below!
+        log_warning("%s[%d] timeout", resolve->name, resolve->id);
     }
 
+    // do not dns_response if we already have err set from timeout-in-past above
     // TODO: optimize common case of there only being one dns_resolve pending to recv directly into resolve->packet
-    if ((err = dns_response(dns, &packet, &header, &timeout)) < 0) {
+    if (!err && (err = dns_response(dns, &packet, &header, &timeout)) < 0) {
         log_error("dns_response");
         return -1;
 
     } else if (err) {
         // schedule for retry
         if (dns_resolve_retry(resolve)) {
-            log_warning("%s[%p] retry failure", resolve->name, resolve);
+            log_warning("%s[%d] retry failure", resolve->name, resolve->id);
             return -1;
         }
 
-        log_warning("%s[%p] retry %d", resolve->name, resolve, resolve->retry);
+        log_warning("%s[%d] retry %d", resolve->name, resolve->id, resolve->retry);
 
         // retry..
         return 1;
