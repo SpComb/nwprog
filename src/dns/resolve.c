@@ -107,7 +107,7 @@ int dns_query_question (struct dns_resolve *resolve, const char *name, enum dns_
 
     resolve->query_header.qdcount++;
 
-    log_info("QD: %s %s:%s", question.qname,
+    log_debug("QD: %s %s:%s", question.qname,
             dns_class_str(question.qclass),
             dns_type_str(question.qtype)
     );
@@ -185,7 +185,7 @@ int dns_resolve_async (struct dns *dns, struct dns_resolve **resolvep, const cha
     struct dns_resolve *resolve;
     int err;
 
-    log_info("%s %s?", name, dns_type_str(type));
+    log_debug("%s %s?", name, dns_type_str(type));
 
     if ((err = dns_resolve_create(dns, &resolve)))
         return err;
@@ -429,7 +429,7 @@ int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *nam
     struct dns_resolve *resolve;
     int err;
 
-    log_info("%s %s?", name, dns_type_str(type));
+    log_debug("%s %s?", name, dns_type_str(type));
 
     if ((err = dns_resolve_create(dns, &resolve)))
         return err;
@@ -528,7 +528,7 @@ int dns_resolve_question (struct dns_resolve *resolve, struct dns_question *ques
 
     resolve->response_questions++;
 
-    log_info("QD: %s %s:%s", question->qname,
+    log_debug("QD: %s %s:%s", question->qname,
             dns_class_str(question->qclass),
             dns_type_str(question->qtype)
     );
