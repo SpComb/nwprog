@@ -31,6 +31,12 @@ struct dns_resolve {
     // query sent and registered
     bool query;
 
+    // time query will timeout
+    struct timeval timeout;
+
+    // retransmits
+    int retry;
+
     // response received
     bool response;
 
@@ -43,6 +49,8 @@ struct dns_resolve {
 
     TAILQ_ENTRY(dns_resolve) dns_resolves;
 };
+
+static const struct timeval dns_resolve_timeout = { 2, 0 }; // 2s
 
 int dns_resolve_create (struct dns *dns, struct dns_resolve **resolvep)
 {
@@ -122,12 +130,53 @@ int dns_resolve_query (struct dns_resolve *resolve)
         return err;
     }
 
+    // set timeout
+    if (timestamp_from_timeout(&resolve->timeout, &dns_resolve_timeout)) {
+        log_error("timestamp_now");
+        goto error;
+    }
+
     // response mapping
     resolve->query = true;
 
     TAILQ_INSERT_TAIL(&resolve->dns->resolves, resolve, dns_resolves);
 
     return 0;
+
+error:
+    return -1;
+}
+
+/*
+ * Retransmit a query.
+ */
+int dns_resolve_retry (struct dns_resolve *resolve)
+{
+    int err;
+
+    // dispatch; old packet should still be intact..
+    if ((err = dns_query(resolve->dns, &resolve->packet, &resolve->query_header))) {
+        log_error("dns_query");
+        return err;
+    }
+
+    // set new timeout
+    if (timestamp_from_timeout(&resolve->timeout, &dns_resolve_timeout)) {
+        log_error("timestamp_now");
+        goto error;
+    }
+
+    // mark as retried
+    resolve->retry++;
+
+    // move to head of queue
+    TAILQ_REMOVE(&resolve->dns->resolves, resolve, dns_resolves);
+    TAILQ_INSERT_TAIL(&resolve->dns->resolves, resolve, dns_resolves);
+
+    return 0;
+
+error:
+    return -1;
 }
 
 int dns_resolve_async (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type)
@@ -158,19 +207,42 @@ err:
 
 /*
  * Wait for a response to any of our resolves.
+ *
+ * Returns 0 on success with *resolvep updated to the responded resolve.
+ * Returns 1 on retry, with *resolvep unset.
+ * Returns -1 on error.
  */
 int dns_resolve_response (struct dns *dns, struct dns_resolve **resolvep)
 {
-    // TODO: optimize common case of there only being one dns_resolve pending
-    struct dns_resolve *resolve;
     struct dns_packet packet;
     struct dns_header header;
     int err;
 
-    // TODO: timeouts
-    if ((err = dns_response(dns, &packet, &header))) {
+    // timeout based on query sent still waiting for a response, which should be the most timeouty resolve, given fixed timeouts
+    struct dns_resolve *resolve = TAILQ_FIRST(&dns->resolves);
+    struct timeval timeout;
+
+    if ((err = timeout_from_timestamp(&timeout, &resolve->timeout)) < 0) {
+        log_error("timeout_from_timestamp");
+        return -1;
+    }
+
+    // TODO: optimize common case of there only being one dns_resolve pending to recv directly into resolve->packet
+    if ((err = dns_response(dns, &packet, &header, &timeout)) < 0) {
         log_error("dns_response");
         return -1;
+
+    } else if (err) {
+        // schedule for retry
+        if (dns_resolve_retry(resolve)) {
+            log_warning("%s[%p] retry failure", resolve->name, resolve);
+            return -1;
+        }
+
+        log_warning("%s[%p] retry %d", resolve->name, resolve, resolve->retry);
+
+        // retry..
+        return 1;
     }
 
     TAILQ_FOREACH(resolve, &dns->resolves, dns_resolves) {
@@ -255,9 +327,13 @@ int dns_resolve_sync (struct dns_resolve *resolve)
             }
 
             // recv()/yield() a response
-            if ((err = dns_resolve_response(resolve->dns, &next))) {
+            if ((err = dns_resolve_response(resolve->dns, &next)) < 0) {
                 log_error("%s[%u] dns_resolve_response", resolve->name, resolve->id);
                 return -1;
+
+            } else if (err) {
+                log_debug("%s[%u] retry..", resolve->name, resolve->id);
+                continue;
             }
 
             // the response that we get may not necessarily be our own
@@ -382,9 +458,9 @@ int dns_resolve_multi (struct dns *dns, struct dns_resolve **resolvep, const cha
     if ((err = dns_resolve_query(resolve)))
         goto err;
 
-    // TODO: schedule multiple queries
-    if ((err = dns_response(dns, &resolve->packet, &resolve->response_header))) {
-        log_error("dns_response");
+    // schedule across multiple resolves
+    if ((err = dns_resolve_sync(resolve))) {
+        log_error("dns_resolve_sync");
         goto err;
     }
 
