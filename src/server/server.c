@@ -420,8 +420,6 @@ int server_request_form (struct server_client *client, const char **keyp, const 
 
 int server_request_param (struct server_client *client, const char **keyp, const char **valuep)
 {
-    int err;
-
     if (client->request.get_query)
         return server_request_query(client, keyp, valuep);
     else if (client->request.content_form)

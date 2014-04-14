@@ -37,6 +37,7 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
     }
 
     // response
+    // err != DNS_NOERROR from dns_resolve?
     if (err) {
         log_warning("dns_resolve: %s: %d", name, err);
         server_response(client, 400, NULL);
@@ -45,14 +46,28 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
     }
 
     server_response_header(client, "Content-Type", "text/plain");
-    
-    // output question
+
+    // output question/header
     struct dns_question qq;
+    struct dns_header header;
+
+    if ((err = dns_resolve_header(resolve, &header))) {
+        log_warning("dns_resolve_header: %s", name);
+        return -1;
+    }
             
-    server_response_print(client, ";; %s\n", dns_section_str(DNS_QD));
+    server_response_print(client, ";; [%u] %s%s%s%s%s%s %s\n", header.id,
+            header.qr      ? "QR " : "",
+            dns_opcode_str(header.opcode),
+            header.aa      ? " AA" : "",
+            header.tc      ? " TC" : "",
+            header.rd      ? " RD" : "",
+            header.ra      ? " RA" : "",
+            dns_rcode_str(header.rcode)
+    );
 
     while (!(err = dns_resolve_question(resolve, &qq))) {
-        server_response_print(client, "; %-30s %-5s %-10s\n", qq.qname, dns_class_str(qq.qclass), dns_type_str(qq.qtype));
+        server_response_print(client, "; %-30s %-5s %-10s?\n", qq.qname, dns_class_str(qq.qclass), dns_type_str(qq.qtype));
     }
 
     // output response

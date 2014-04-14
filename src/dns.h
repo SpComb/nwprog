@@ -170,7 +170,8 @@ int dns_resolve_async (struct dns *dns, struct dns_resolve **resolvep, const cha
  *
  * Implements 2s retries with a total 10s timeout.
  *
- * Returns <0 on internal error, DNS_NOERROR, dns_rcode >0 on resolve error.
+ * Returns <0 on internal error with *resolvep unset.
+ * Returns response dns_rcode; call dns_resolve_header/question/record to read response.
  */
 int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type);
 
