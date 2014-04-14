@@ -600,7 +600,10 @@ int event_main_run (struct event_main *event_main)
             struct timeval select_timeout;
 
             // convert event_timeout timestamp -> select timeout
-            if (timeout_from_timestamp(&select_timeout, &event_timeout)) {
+            // if the event_timeout is in the past, we sill simply poll select and notify the timeout on this iteration..
+            //  XXX: select() may return nonzero even with a zero timeout, meaning that we don't service this timeout
+            //       until we are otherwise idle on IO..
+            if (timeout_from_timestamp(&select_timeout, &event_timeout) < 0) {
                 log_warning("timestamp_timeout");
                 return -1;
             }
