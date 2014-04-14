@@ -572,7 +572,7 @@ int dns_resolve_record (struct dns_resolve *resolve, enum dns_section *sectionp,
 
     resolve->response_records++;
 
-    log_ninfo("%s: %s %s:%s %d ", dns_section_str(section), rr->name,
+    log_ndebug("%s: %s %s:%s %d ", dns_section_str(section), rr->name,
             dns_class_str(rr->class),
             dns_type_str(rr->type),
             rr->ttl
@@ -585,7 +585,7 @@ int dns_resolve_record (struct dns_resolve *resolve, enum dns_section *sectionp,
             return -1;
         }
 
-        log_qinfo("%s", dns_rdata_str(rr, rdata));
+        log_qdebug("%s", dns_rdata_str(rr, rdata));
     }
 
     return 0;
