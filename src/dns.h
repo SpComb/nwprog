@@ -168,6 +168,8 @@ int dns_resolve_async (struct dns *dns, struct dns_resolve **resolvep, const cha
 /*
  * Perform a DNS lookup, returning the response in *resolvep.
  *
+ * Implements 2s retries with a total 10s timeout.
+ *
  * Returns <0 on internal error, DNS_NOERROR, dns_rcode >0 on resolve error.
  */
 int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type);

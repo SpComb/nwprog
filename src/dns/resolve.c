@@ -37,8 +37,8 @@ struct dns_resolve {
     // retransmits
     int retry;
 
-    // response received
-    bool response;
+    // response received >0, or timeout <0
+    int response;
 
     // response
     struct dns_header response_header;
@@ -51,6 +51,7 @@ struct dns_resolve {
 };
 
 static const struct timeval dns_resolve_timeout = { 2, 0 }; // 2s
+static const int DNS_RESOLVE_RETRY = 5; // 10s
 
 int dns_resolve_create (struct dns *dns, struct dns_resolve **resolvep)
 {
@@ -238,7 +239,7 @@ int dns_resolve_response (struct dns *dns, struct dns_resolve **resolvep)
         log_error("dns_response");
         return -1;
 
-    } else if (err) {
+    } else if (err && resolve->retry < DNS_RESOLVE_RETRY) {
         // schedule for retry
         if (dns_resolve_retry(resolve)) {
             log_warning("%s[%d] retry failure", resolve->name, resolve->id);
@@ -249,6 +250,18 @@ int dns_resolve_response (struct dns *dns, struct dns_resolve **resolvep)
 
         // retry..
         return 1;
+
+    } else if (err) {
+        log_warning("%s[%d] retry exceeded", resolve->name, resolve->id);
+
+        // mark as timed out
+        resolve->response = -1;
+
+        TAILQ_REMOVE(&dns->resolves, resolve, dns_resolves);
+
+        *resolvep = resolve;
+
+        return 0;
     }
 
     TAILQ_FOREACH(resolve, &dns->resolves, dns_resolves) {
@@ -271,7 +284,7 @@ int dns_resolve_response (struct dns *dns, struct dns_resolve **resolvep)
     resolve->packet.ptr = resolve->packet.buf + (packet.ptr - packet.buf);
 
     // mark as responded
-    resolve->response = true;
+    resolve->response = 1;
 
     TAILQ_REMOVE(&dns->resolves, resolve, dns_resolves);
 
@@ -370,14 +383,10 @@ int dns_resolve_sync (struct dns_resolve *resolve)
             // wait for some other task to recv our response...
             log_debug("%s[%u] waiting on event[%p] for response...", resolve->name, resolve->id, event);
 
-            if ((err = event_wait(event, &resolve->wait)) < 0) {
+            // TODO: timeout support, in case the task servicing the event somehow e.g. dies with `return -1`?
+            if (event_wait(event, &resolve->wait)) {
                 log_error("event_wait");
                 return -1;
-            }
-
-            if (err) {
-                log_warning("%s[%u] timeout", resolve->name, resolve->id);
-                return 1;
             }
 
             if (resolve->response)
@@ -386,8 +395,6 @@ int dns_resolve_sync (struct dns_resolve *resolve)
                 log_debug("%s[%u] got notify()'d without a response, assuming some yield()'ing task is asking us to yield()", resolve->name, resolve->id);
         }
     }
-
-    log_debug("%s[%u] has response", resolve->name, resolve->id);
 
     // in case we were yielding on an event, and other tasks waited on it, and we got our final response and never yield
     // on it again, we must poke another waiting task at this point in order to keep the queue alive.
@@ -405,7 +412,16 @@ int dns_resolve_sync (struct dns_resolve *resolve)
         }
     }
 
-    return 0;
+    if (resolve->response < 0) {
+        log_debug("%s[%u] timeout", resolve->name, resolve->id);
+
+        return 1;
+
+    } else {
+        log_debug("%s[%u] has response", resolve->name, resolve->id);
+
+        return 0;
+    }
 }
 
 int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *name, enum dns_type type)
@@ -427,8 +443,14 @@ int dns_resolve (struct dns *dns, struct dns_resolve **resolvep, const char *nam
         goto err;
 
     // schedule across multiple resolves
-    if ((err = dns_resolve_sync(resolve))) {
+    if ((err = dns_resolve_sync(resolve)) < 0) {
         log_error("dns_resolve_sync");
+        goto err;
+
+    } else if (err) {
+        log_error("dns_resolve_sync: timeout");
+        // TODO: better format for error return codes, to support timeouts...
+        err = -2;
         goto err;
     }
 

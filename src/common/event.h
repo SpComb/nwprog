@@ -94,6 +94,7 @@ int event_sleep (struct event *event, const struct timeval *timeout);
  * Yield execution on given event, waiting for the task that has event_yield()'d on that event to event_notify() us.
  *
  * TODO: some kind of tracking of dead tasks that are waiting on an event that nobody is yielding on.
+ * TODO: support for timeouts
  */
 int event_wait (struct event *event, struct event_task **waitp);
 
