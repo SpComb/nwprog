@@ -1,6 +1,7 @@
 #include "event.h"
 
 #include "common/log.h"
+#include "common/util.h"
 
 #include <pcl.h>
 
@@ -288,19 +289,15 @@ int event_register (struct event *event, int flags, const struct timeval *timeou
         event->flags |= EVENT_TIMEOUT;
 
         // set timeout in future
-        if (gettimeofday(&event->timeout, NULL)) {
-            log_perror("gettimeofday");
+        if (timestamp_from_timeout(&event->timeout, timeout)) {
+            log_error("timestamp_from_timeout");
             return -1;
         }
         
-        // XXX: tv_usec overflow?
-        event->timeout.tv_sec += timeout->tv_sec;
-        event->timeout.tv_usec += timeout->tv_usec;
-
     } else if (event->flags & EVENT_TIMEOUT) {
         // set immediate timeout
-        if (gettimeofday(&event->timeout, NULL)) {
-            log_perror("gettimeofday");
+        if (timestamp_now(&event->timeout)) {
+            log_error("timestamp_now");
             return -1;
         }
 	}
@@ -602,26 +599,10 @@ int event_main_run (struct event_main *event_main)
         if (timeout_event) {
             struct timeval select_timeout;
 
-            if (gettimeofday(&select_timeout, NULL)) {
-                log_perror("gettimeofday");
+            // convert event_timeout timestamp -> select timeout
+            if (timeout_from_timestamp(&select_timeout, &event_timeout)) {
+                log_warning("timestamp_timeout");
                 return -1;
-            }
-            
-            if (event_timeout.tv_sec >= select_timeout.tv_sec && event_timeout.tv_usec >= select_timeout.tv_usec) {
-                select_timeout.tv_sec = event_timeout.tv_sec - select_timeout.tv_sec;
-                select_timeout.tv_usec = event_timeout.tv_usec - select_timeout.tv_usec;
-
-            } else if (event_timeout.tv_sec > select_timeout.tv_sec && event_timeout.tv_usec < select_timeout.tv_usec) {
-                select_timeout.tv_sec = event_timeout.tv_sec - select_timeout.tv_sec - 1;
-                select_timeout.tv_usec = 1000000 + event_timeout.tv_usec - select_timeout.tv_usec;
-
-            } else {
-                log_warning("timeout in past: %ld:%ld < %ld:%ld", 
-                        event_timeout.tv_sec, event_timeout.tv_usec,
-                        select_timeout.tv_sec, select_timeout.tv_usec
-                );
-                select_timeout.tv_sec = 0;
-                select_timeout.tv_usec = 0;
             }
 
             log_debug("select: %d timeout=%ld:%ld", nfds, select_timeout.tv_sec, select_timeout.tv_usec);
