@@ -95,3 +95,59 @@ const char * str_fmt (char *buf, size_t len, const char *fmt, ...)
 
     return buf;
 }
+
+int timestamp_now (struct timeval *timestamp)
+{
+    if (gettimeofday(timestamp, NULL)) {
+        log_perror("gettimeofday");
+        return -1;
+    }
+ 
+    return 0;
+}
+
+int timestamp_from_timeout (struct timeval *timestamp, const struct timeval *timeout)
+{
+    if (gettimeofday(timestamp, NULL)) {
+        log_perror("gettimeofday");
+        return -1;
+    }
+    
+    // set timeout in future
+    // XXX: tv_usec overflow?
+    timestamp->tv_sec += timeout->tv_sec;
+    timestamp->tv_usec += timeout->tv_usec;
+
+    return 0;
+}
+
+int timeout_from_timestamp (struct timeval *timeout, const struct timeval *timestamp)
+{
+    if (gettimeofday(timeout, NULL)) {
+        log_pwarning("gettimeofday");
+        return -1;
+    }
+    
+    if (timestamp->tv_sec >= timeout->tv_sec && timestamp->tv_usec >= timeout->tv_usec) {
+        timeout->tv_sec = timestamp->tv_sec - timeout->tv_sec;
+        timeout->tv_usec = timestamp->tv_usec - timeout->tv_usec;
+
+    } else if (timestamp->tv_sec > timeout->tv_sec && timestamp->tv_usec < timeout->tv_usec) {
+        timeout->tv_sec = timestamp->tv_sec - timeout->tv_sec - 1;
+        timeout->tv_usec = 1000000 + timestamp->tv_usec - timeout->tv_usec;
+
+    } else {
+        log_warning("timestamp in past: %ld:%ld < %ld:%ld", 
+                timeout->tv_sec, timeout->tv_usec,
+                timestamp->tv_sec, timestamp->tv_usec
+        );
+        timeout->tv_sec = 0;
+        timeout->tv_usec = 0;
+
+        return 1;
+    }
+
+    log_debug("%ld:%ld <- %ld:%ld", timestamp->tv_sec, timestamp->tv_usec, timeout->tv_sec, timeout->tv_usec);
+
+    return 0;
+}
