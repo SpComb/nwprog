@@ -544,6 +544,7 @@ void event_destroy (struct event *event)
 int event_main_run (struct event_main *event_main)
 {
     fd_set read, write;
+    int err;
 
     while (true) {
         int nfds = 0, ret;
@@ -603,9 +604,11 @@ int event_main_run (struct event_main *event_main)
             // if the event_timeout is in the past, we sill simply poll select and notify the timeout on this iteration..
             //  XXX: select() may return nonzero even with a zero timeout, meaning that we don't service this timeout
             //       until we are otherwise idle on IO..
-            if (timeout_from_timestamp(&select_timeout, &event_timeout) < 0) {
+            if ((err = timeout_from_timestamp(&select_timeout, &event_timeout)) < 0) {
                 log_warning("timestamp_timeout");
                 return -1;
+            } else if (err) {
+                log_warning("event[%p] timeout in past", timeout_event);
             }
 
             log_debug("select: %d timeout=%ld:%ld", nfds, select_timeout.tv_sec, select_timeout.tv_usec);

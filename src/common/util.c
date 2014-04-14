@@ -137,7 +137,7 @@ int timeout_from_timestamp (struct timeval *timeout, const struct timeval *times
         timeout->tv_usec = 1000000 + timestamp->tv_usec - timeout->tv_usec;
 
     } else {
-        log_warning("timestamp in past: %ld:%ld < %ld:%ld", 
+        log_info("timestamp in past: %ld:%ld < %ld:%ld",
                 timeout->tv_sec, timeout->tv_usec,
                 timestamp->tv_sec, timestamp->tv_usec
         );
