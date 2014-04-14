@@ -36,6 +36,8 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
         return 500;
     }
 
+    log_info("%s %s: %s", name, dns_type_str(qtype), dns_rcode_str(err));
+
     // response
     // err != DNS_NOERROR from dns_resolve?
     if (err) {
@@ -55,7 +57,7 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
         log_warning("dns_resolve_header: %s", name);
         return -1;
     }
-            
+
     server_response_print(client, ";; [%u] %s%s%s%s%s%s %s\n", header.id,
             header.qr      ? "QR " : "",
             dns_opcode_str(header.opcode),
@@ -111,7 +113,7 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
 
     // read request
     const char *header, *value;
-    log_info("%s", url->query);
+    log_debug("%s", url->query);
 
     while (!(err = server_request_header(client, &header, &value))) {
 
@@ -124,16 +126,16 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
 
     // parse GET/POST parameters
     const char *key;
-    
+
     while (!(err = server_request_param(client, &key, &value))) {
         if (!strcasecmp(key, "name")) {
-            log_info("name=%s", value);
+            log_debug("name=%s", value);
             name = value;
         } else if (!strcasecmp(key, "type")) {
-            log_info("type=%s", type);
+            log_debug("type=%s", type);
             type = value;
         } else {
-            log_info("%s?", key);
+            log_debug("%s?", key);
         }
     }
 
@@ -154,8 +156,8 @@ int server_dns_create (struct server_dns **sp, struct server *server, const char
 		log_perror("calloc");
 		return -1;
 	}
-	
-	s->handler.request = server_dns_request;
+
+    s->handler.request = server_dns_request;
 
     log_info("GET %s", path);
 
