@@ -54,6 +54,14 @@ const char * http_status_str (enum http_status status);
 int http_create (struct http **httpp, struct stream *read, struct stream *write);
 
 /*
+ * Write data from memory, as part of the message body.
+ *
+ * XXX: ensure that the use of stream_write does not place limits on maximum length.
+ */
+int http_write (struct http *http, const char *buf, size_t size);
+
+// XXX: should be http_print
+/*
  * Write formatted data, as part of the message body.
  */
 int http_vwrite (struct http *http, const char *fmt, va_list args);

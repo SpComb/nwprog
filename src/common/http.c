@@ -69,6 +69,11 @@ error:
 
 
 /* Writing */
+int http_write (struct http *http, const char *buf, size_t size)
+{
+    return stream_write(http->write, buf, size);
+}
+
 int http_vwrite (struct http *http, const char *fmt, va_list args)
 {
     return stream_vprintf(http->write, fmt, args);
