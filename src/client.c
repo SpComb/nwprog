@@ -10,6 +10,7 @@
 struct options {
 	const char *get;
 	const char *put;
+    const char *post;
     const char *iam;
     enum http_version http_version;
     bool parallel;
@@ -32,6 +33,7 @@ static const struct option long_options[] = {
 	{ "verbose",	0,	NULL,		'v'	},
 	{ "debug",		0,	NULL,		'd'	},
 	{ "put",		1,	NULL,		'P' },
+    { "post",       1,  NULL,       'F' },
     { "http-11",    0,  NULL,       OPT_HTTP_11     },
     { "parallel",   0,  NULL,       'j' },
 	{ }
@@ -46,8 +48,9 @@ void help (const char *argv0) {
 			"	-v --verbose       More output\n"
 			"	-d --debug         Debug output\n"
 			"\n"
-			"	-G --get=file      GET to file\n"
-			"	-P --put=file      PUT from file\n"
+			"	-G --get=file           GET to file\n"
+			"	-P --put=file           PUT from file\n"
+            "   -F --post=form-data     POST form data from string\n"
             "\n"
 			"	-I --iam=username   Send Iam header\n"
             "	   --http-11        Send HTTP/1.1 requests\n"
@@ -166,6 +169,13 @@ void client (void *ctx)
             goto error;
 		}
 
+    } else if (options->post) {
+		if ((err = client_post(client, &urlbuf.url, options->post, "application/x-www-form-urlencoded")) < 0) {
+			log_fatal("POST failed: %s", task->arg);
+            err = 3;
+            goto error;
+		}
+
 	} else {
 		if ((err = client_get(client, &urlbuf.url)) < 0) {
 			log_fatal("GET failed: %s", task->arg);
@@ -209,12 +219,13 @@ int main (int argc, char **argv)
     struct options options = {
         .get    = NULL,
         .put    = NULL,
+        .post   = NULL,
         .iam    = getlogin(),
 
         .http_version   = HTTP_10,
     };
 
-	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:j", long_options, NULL)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:jD:", long_options, NULL)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -250,6 +261,10 @@ int main (int argc, char **argv)
 
             case 'j':
                 options.parallel = true;
+                break;
+
+            case 'D':
+                options.post = optarg;
                 break;
 
 			default:
