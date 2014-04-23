@@ -13,7 +13,7 @@ struct server_dns {
     struct dns *dns;
 };
 
-int server_dns_lookup (struct server_dns *s, struct server_client *client, const char *name, const char *type)
+int server_dns_lookup (struct dns *dns, struct server_client *client, const char *name, const char *type)
 {
     int err;
     enum dns_type qtype;
@@ -31,7 +31,7 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
     // resolve
     struct dns_resolve *resolve;
 
-    if ((err = dns_resolve(s->dns, &resolve, name, qtype)) < 0) {
+    if ((err = dns_resolve(dns, &resolve, name, qtype)) < 0) {
         log_error("dns_resolve: %s", name);
         return 500;
     }
@@ -108,7 +108,7 @@ int server_dns_lookup (struct server_dns *s, struct server_client *client, const
 int server_dns_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
 	struct server_dns *s = (void *) handler;
-    const char *name = NULL, *type = NULL;
+    const char *name = NULL, *type = NULL, *server = NULL;
     int err;
 
     // read request
@@ -134,6 +134,9 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
         } else if (!strcasecmp(key, "type")) {
             log_debug("type=%s", type);
             type = value;
+        } else if (!strcasecmp(key, "server")) {
+            log_debug("server=%s", type);
+            server = value;
         } else {
             log_debug("%s?", key);
         }
@@ -144,8 +147,25 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
         return err;
     }
 
+    // resolver
+    struct dns *dns = NULL;
+
+    if (server) {
+        // new dns for given resolver (server)
+        // XXX: this invokes a blocking resolver lookup for the given server
+        if ((err = dns_create(s->handler.event_main, &dns, server))) {
+            log_error("dns_create: %s", server);
+            return 400;
+        }
+    }
+
     // handle
-    return server_dns_lookup(s, client, name, type);
+    err = server_dns_lookup(dns ? dns : s->dns, client, name, type);
+
+    if (dns)
+        dns_destroy(dns);
+
+    return err;
 }
 
 int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver)
@@ -165,12 +185,12 @@ int server_dns_create (struct server_dns **sp, struct server *server, const char
         log_error("server_add_handler: GET");
         goto error;
     }
-	
+
     if (server_add_handler(server, "POST", path, &s->handler)) {
         log_error("server_add_handler: POST");
         goto error;
     }
-    
+
     if (dns_create(s->handler.event_main, &s->dns, resolver)) {
         log_error("dns_create: %s", resolver);
         goto error;
@@ -186,5 +206,6 @@ error:
 
 void server_dns_destroy (struct server_dns *s)
 {
+    dns_destroy(s->dns);
 	free(s);
 }
