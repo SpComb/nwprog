@@ -57,9 +57,13 @@ struct client_request {
 
 	/* Headers */
 	size_t content_length;
+    const char *content_type;
 
 	/* Write request body from FILE */
 	FILE *content_file;
+
+    /* Write request body from string */
+    const char *content_string;
 };
 
 /*
@@ -269,29 +273,35 @@ int client_request_header (struct client *client, const char *name, const char *
 /*
  * Send request body from file.
  */
-int client_request_file (struct client *client, const struct client_request *request)
+int client_request_body (struct client *client, const struct client_request *request)
 {
     int fd;
     int err;
 
-	if (!request->content_file)
-        return 0;
+	if (request->content_file) {
+        // XXX: convert to fd
+        if (fflush(request->content_file)) {
+            log_perror("fflush");
+            return -1;
+        }
 
-    // XXX: convert 
-    if (fflush(request->content_file)) {
-        log_perror("fflush");
-        return -1;
+        if ((fd = fileno(request->content_file)) < 0) {
+            log_perror("fileno");
+            return -1;
+        }
+
+        // send; content_length may either be 0 or determined earlier, before sending headers
+        if ((err = http_write_file(client->http, fd, request->content_length)))
+            return err;
+
+    } else if (request->content_string) {
+        log_info("%.*s", (int) request->content_length, request->content_string);
+
+        // send
+        if ((err = http_write(client->http, request->content_string, request->content_length)))
+            return err;
     }
 
-    if ((fd = fileno(request->content_file)) < 0) {
-        log_perror("fileno");
-        return -1;
-    }
-    
-    // send; content_length may either be 0 or determined earlier, before sending headers
-    if ((err = http_write_file(client->http, fd, request->content_length)))
-		return err;
-    
     return 0;
 }
 
@@ -499,6 +509,13 @@ static int client_request (struct client *client, struct client_request *request
             }
         }
 
+        if (request->content_type) {
+            if ((err = client_request_header(client, "Content-Type", "%s", request->content_type))) {
+                log_error("error sending request content-type header");
+                return err;
+            }
+        }
+
         // custom headers
         struct client_header *header;
 
@@ -509,19 +526,21 @@ static int client_request (struct client *client, struct client_request *request
             }
         }
 
+        // end of headers
         if ((err = http_write_headers(client->http))) {
             log_error("error sending request end-of-headers");
             return -1;
         }
 
-        if ((err = client_request_file(client, request))) {
-            log_error("error sending request file");
+        // body
+        if ((err = client_request_body(client, request))) {
+            log_error("error sending request body");
             return -1;
         }
 
         log_info("%s", "");
     }
-	
+
 	// response
     return client_response(client, request, response);
 }
@@ -597,6 +616,45 @@ int client_put (struct client *client, const struct url *url, FILE *file)
 
 	struct client_response response	= {
 		.content_file	= client->response_file,
+	};
+
+	if ((err = client_request(client, &request, &response)) < 0) {
+        log_error("client_request");
+    }
+
+    // close if not persistent, or error
+    if (err) {
+       if (client_close(client))
+            log_warning("client_close");
+    }
+
+    if (err < 0) {
+        return err;
+    } else {
+        return response.status;
+    }
+}
+
+int client_post (struct client *client, const struct url *url, const char *data, const char *content_type)
+{
+	int err;
+
+    // open connection if needed
+    if (!client->http && (err = client_open(client, url)))
+        return err;
+
+	// request
+	struct client_request request = {
+		.url            = url,
+		.method         = "POST",
+
+        .content_string = data,
+		.content_length = strlen(data),
+        .content_type   = content_type,
+	};
+
+	struct client_response response = {
+		.content_file   = client->response_file,
 	};
 
 	if ((err = client_request(client, &request, &response)) < 0) {

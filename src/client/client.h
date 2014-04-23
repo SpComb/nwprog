@@ -69,6 +69,13 @@ int client_get (struct client *client, const struct url *url);
 int client_put (struct client *client, const struct url *url, FILE *file);
 
 /*
+ * Perform a POST request for the given request body (string) and URL /path.
+ *
+ * Returns HTTP response status, or <0 on error.
+ */
+int client_post (struct client *client, const struct url *url, const char *data, const char *content_type);
+
+/*
  * Close any open connection.
  */
 int client_close (struct client *client);
