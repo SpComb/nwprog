@@ -41,32 +41,40 @@ static const struct option long_options[] = {
 
 void help (const char *argv0) {
 	printf(
-			"Usage: %s [options] <url>\n"
+			"Usage: %s [options] <url> [<url>] [...]\n"
 			"\n"
-			"	-h --help          Display this text\n"
-			"	-q --quiet         Less output\n"
-			"	-v --verbose       More output\n"
-			"	-d --debug         Debug output\n"
+			"   -h --help               Display this text\n"
+			"   -q --quiet              Less output\n"
+			"   -v --verbose            More output\n"
+			"   -d --debug              Debug output\n"
 			"\n"
-			"	-G --get=file           GET to file\n"
-			"	-P --put=file           PUT from file\n"
+			"   -G --get=file           GET to file\n"
+			"   -P --put=file           PUT from file\n"
             "   -F --post=form-data     POST form data from string\n"
             "\n"
-			"	-I --iam=username   Send Iam header\n"
-            "	   --http-11        Send HTTP/1.1 requests\n"
-            "   -j --parallel       Perform requests in parallel\n"
+			"   -I --iam=username       Send Iam header\n"
+            "      --http-11            Send HTTP/1.1 requests\n"
+            "   -j --parallel           Perform requests in parallel\n"
 			"\n"
 			"Examples:\n"
 			"\n"
-			"	%s -q http://www.ietf.org/rfc/rfc2616.txt\n"
-			"	%s -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt\n"
-			"	%s -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt\n"
+			"   %s -q http://www.ietf.org/rfc/rfc2616.txt\n"
+			"   %s -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt\n"
+			"   %s -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt\n"
+            "   %s -F 'name=example.com&type=A' http://localhost:8080/dns-query/\n"
             "\n"
             "Use of HTTP/1.1 persistent connections:\n"
             "\n"
             "   %s --http-11 http://example.com/foo /bar\n"
 			"\n"
-	, argv0, argv0, argv0, argv0, argv0);
+            "Use of parallel requests:\n"
+            "\n"
+            "   %s -j http://example.com/foo http://example.com/bar\n"
+            "\n"
+            "   Note that this is of fairly limited use, as the responses will be\n"
+            "   intermixed arbitrarily. No inter/intra -request ordering is guaranteed.\n"
+            "\n"
+	, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
 }
 
 struct client_task {
@@ -225,7 +233,7 @@ int main (int argc, char **argv)
         .http_version   = HTTP_10,
     };
 
-	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:jD:", long_options, NULL)) >= 0) {
+	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:jF:", long_options, NULL)) >= 0) {
 		switch (opt) {
 			case 'h':
 				help(argv[0]);
@@ -263,7 +271,7 @@ int main (int argc, char **argv)
                 options.parallel = true;
                 break;
 
-            case 'D':
+            case 'F':
                 options.post = optarg;
                 break;
 

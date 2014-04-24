@@ -37,18 +37,19 @@ struct dns_task {
 
 void help (const char *argv0) {
 	printf(
-			"Usage: %s [options] ...\n"
+			"Usage: %s [options] <host> [<host>] [...]\n"
 			"\n"
-			"	-h --help          Display this text\n"
-			"	-q --quiet         Less output\n"
-			"	-v --verbose       More output\n"
-			"	-d --debug         Debug output\n"
+			"   -h --help          Display this text\n"
+			"   -q --quiet         Less output\n"
+			"   -v --verbose       More output\n"
+			"   -d --debug         Debug output\n"
             "\n"
             "   -R --resolver       DNS resolver address\n"
 			"\n"
 			"Examples:\n"
 			"\n"
-			"	%s\n"
+			"   %s example.com\n"
+			"   %s example.com example.net\n"
 			"\n"
 	, argv0, argv0);
 }
