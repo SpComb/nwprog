@@ -35,6 +35,7 @@ const char * http_status_str (enum http_status status)
 		case 411:   return "Length Required";
 		case 413:   return "Request Entity Too Large";
 		case 414:   return "Request-URI Too Long";
+        case 415:   return "Unsupported Media Type";
 
 		case 500:	return "Internal Server Error";
 
