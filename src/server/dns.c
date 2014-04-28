@@ -142,8 +142,8 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
         }
     }
 
-    if (err < 0) {
-        log_error("url_decode");
+    if (err != 1) { // XXX
+        log_error("server_request_param");
         return err;
     }
 

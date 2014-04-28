@@ -415,6 +415,7 @@ int server_request_form (struct server_client *client, const char **keyp, const 
     
     log_debug("%s", client->request.post_form);
     
+    // returns 1 after last param
     return url_decode(&client->request.post_form, keyp, valuep);
 }
 

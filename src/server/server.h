@@ -72,7 +72,7 @@ int server_request_form (struct server_client *client, const char **keyp, const 
 /*
  * Read in request parameters, both GET and POST.
  *
- * Returns 1 on end-of-params.
+ * Returns 1 on end-of-params, <0 on internal error, >0 on HTTP error, 0 on success.
  */
 int server_request_param (struct server_client *client, const char **keyp, const char **valuep);
 
