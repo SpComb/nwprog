@@ -85,6 +85,9 @@ struct server_client {
         /* XXX: Decoding GET params in-place from url.query */
         char *get_query;
 
+        /* Request is a POST request */
+        bool post;
+
         /* Decoding POST params */
         char *post_form;
 
@@ -295,6 +298,8 @@ int server_request (struct server_client *client)
     if (strcasecmp(method, "GET") == 0) {
         // XXX: decoded in-place, stripping const
         client->request.get_query = (char *) client->request.url.query;
+    } else if (strcasecmp(method, "POST") == 0) {
+        client->request.post = true;
     }
 
 	return 0;
@@ -426,10 +431,19 @@ int server_request_param (struct server_client *client, const char **keyp, const
 {
     if (client->request.get_query)
         return server_request_query(client, keyp, valuep);
-    else if (client->request.content_form)
-        return server_request_form(client, keyp, valuep);
-    else
+
+    if (!client->request.post)
         return 1;
+
+    // yes, server_request_form also checks this, but we want to report this *before* 415
+    if (!client->request.content_length)
+        return 411; // Length Required
+
+    if (!client->request.content_form)
+        return 415; // Unsupported Media Type
+
+    // returns 1 after last param
+    return server_request_form(client, keyp, valuep);
 }
 
 int server_request_file (struct server_client *client, int fd)
