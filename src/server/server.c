@@ -328,10 +328,13 @@ int server_request_header (struct server_client *client, const char **namep, con
         return err;
     }
 
-    if (err) {
+    if (err == 1) {
         log_debug("end of headers");
         client->request.headers = true;
         return 1;
+    } else if (err) {
+        log_warning("http_read_header: %d", err);
+        return err;
     }
 
     // mark as having read some headers
