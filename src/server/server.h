@@ -37,6 +37,14 @@ int server_listen (struct server *server, const char *host, const char *port);
 /*
  * Add a server handler for requests.
  *
+ * method   - NULL to accept any requests, or specific GET/POST/etc method to handle requests for.
+ * path     -
+ *      NULL    - wildcard match
+ *      foo     - matches "GET /foo", but not "GET /foo/" nor "GET /foo/bar" nor "GET /foo.bar"
+ *      foo/    - matches "GET /foo" and "GET /foo/" and "GET /foo/bar", but not "GET /foo.bar"
+ *
+ * The leading / in the path should be omitted.
+ *
  * The given method/path must remain valid of the lifetime of the server.
  */
 int server_add_handler (struct server *server, const char *method, const char *path, struct server_handler *handler);

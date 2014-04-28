@@ -161,7 +161,7 @@ int server_add_handler (struct server *server, const char *method, const char *p
 		log_pwarning("calloc");
 		return -1;
 	}
-	
+
 	h->method = method;
 	h->path = path;
 	h->handler = handler;
@@ -175,6 +175,37 @@ int server_add_handler (struct server *server, const char *method, const char *p
 }
 
 /*
+ * Match request path against handler.
+ *
+ * Returns 1 on mismatch, 0 on match.
+ */
+int server_match_handler_path (struct server_handler_item *handler, const char *path)
+{
+    size_t pathlen = strlen(handler->path), requestlen = strlen(path);
+
+    if (!handler->path || !pathlen)
+        // empty path always matches
+        return 0;
+
+    // handle trailing /
+    size_t prefixlen = pathlen - 1;
+    char endswith = handler->path[prefixlen];
+
+    if (endswith != '/') {
+        // no trailing /: strict match
+        return strcmp(handler->path, path);
+    } else {
+        // trailing /: prefix match, but with optional trailing / in request
+        if (requestlen == prefixlen)
+            // strict match, omitting trailing /
+            return strncmp(handler->path, path, prefixlen);
+        else
+            // prefix match, including trailing /
+            return strncmp(handler->path, path, pathlen);
+    }
+}
+
+/*
  * Lookup a handler for the given request.
  */
 int server_lookup_handler (struct server *server, const char *method, const char *path, struct server_handler **handlerp)
@@ -183,21 +214,21 @@ int server_lookup_handler (struct server *server, const char *method, const char
 	enum http_status status = 404;
 
 	TAILQ_FOREACH(h, &server->handlers, server_handlers) {
-		if (h->path && strncmp(h->path, path, strlen(h->path)))
+		if (h->path && server_match_handler_path(h, path))
 			continue;
-		
+
 		if (h->method && strcmp(h->method, method)) {
 			// chain along so that a matching path but mismatching method is 405
 			status = 405;
 			continue;
 		}
-		
+
 		log_debug("%s", h->path);
 
 		*handlerp = h->handler;
 		return 0;
 	}
-	
+
 	log_warning("%s: %d", path, status);
 	return status;
 }
