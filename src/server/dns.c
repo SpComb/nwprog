@@ -119,8 +119,8 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
 
     }
 
-    if (err < 0) {
-        log_error("server_request_header");
+    if (err != 1) {
+        log_error("server_request_header: %d", err);
         return err;
     }
 
