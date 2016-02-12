@@ -104,14 +104,14 @@ static const struct stream_type tcp_stream_type = {
 
 int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
 {
-	struct tcp *tcp = NULL;
+    struct tcp *tcp = NULL;
 
-	if (!(tcp = calloc(1, sizeof(*tcp)))) {
-		log_perror("calloc");
-		goto error;
-	}
+    if (!(tcp = calloc(1, sizeof(*tcp)))) {
+        log_perror("calloc");
+        goto error;
+    }
 
-	tcp->sock = sock;
+    tcp->sock = sock;
     
     if (event_main) {
         if (sock_nonblocking(sock)) {
@@ -125,28 +125,28 @@ int tcp_create (struct event_main *event_main, struct tcp **tcpp, int sock)
         }
     }
 
-	if (stream_create(&tcp_stream_type, &tcp->read, TCP_STREAM_SIZE, tcp)) {
-		log_error("stream_create read");
-		goto error;
-	}
-	
-	if (stream_create(&tcp_stream_type, &tcp->write, TCP_STREAM_SIZE, tcp)) {
-		log_error("stream_create write");
-		goto error;
-	}
+    if (stream_create(&tcp_stream_type, &tcp->read, TCP_STREAM_SIZE, tcp)) {
+        log_error("stream_create read");
+        goto error;
+    }
+    
+    if (stream_create(&tcp_stream_type, &tcp->write, TCP_STREAM_SIZE, tcp)) {
+        log_error("stream_create write");
+        goto error;
+    }
 
-	*tcpp = tcp;
+    *tcpp = tcp;
 
-	return 0;
+    return 0;
 
 error:
-	if (tcp) {
-		tcp_destroy(tcp);
-	} else {
-		close(sock);
-	}
+    if (tcp) {
+        tcp_destroy(tcp);
+    } else {
+        close(sock);
+    }
 
-	return -1;
+    return -1;
 }
 
 int tcp_sock (struct tcp *tcp)
@@ -179,14 +179,14 @@ void tcp_destroy (struct tcp *tcp)
     if (tcp->event)
         event_destroy(tcp->event);
 
-	if (tcp->write)
-		stream_destroy(tcp->write);
+    if (tcp->write)
+        stream_destroy(tcp->write);
 
-	if (tcp->read)
-		stream_destroy(tcp->read);
+    if (tcp->read)
+        stream_destroy(tcp->read);
 
     if (tcp->sock >= 0)
         close(tcp->sock);
 
-	free(tcp);
+    free(tcp);
 }

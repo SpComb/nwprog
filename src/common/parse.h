@@ -8,42 +8,42 @@
  */
 
 enum parse_type {
-	PARSE_NONE		= 0,
-	PARSE_STRING,
-	PARSE_INT,
-	PARSE_UINT,
+    PARSE_NONE        = 0,
+    PARSE_STRING,
+    PARSE_INT,
+    PARSE_UINT,
 
-	
-	/* Flags */
-	PARSE_TYPE		= 0x0f,
+    
+    /* Flags */
+    PARSE_TYPE        = 0x0f,
 
-	// do not terminate
-	PARSE_KEEP		= 0x10,
-	
-	// keep token
-	PARSE_SKIP		= 0x20,
+    // do not terminate
+    PARSE_KEEP        = 0x10,
+    
+    // keep token
+    PARSE_SKIP        = 0x20,
 };
 
 struct parse {
-	/* From state */
-	int state;
+    /* From state */
+    int state;
 
-	/* For char, or -1 for wildcard */
-	char c;
+    /* For char, or -1 for wildcard */
+    char c;
 
-	/* To state */
-	int next_state;
+    /* To state */
+    int next_state;
 
-	/* Store token */
-	enum parse_type type;
+    /* Store token */
+    enum parse_type type;
 
-	union {
-		const char **parse_string;
+    union {
+        const char **parse_string;
 
-		int *parse_int;
+        int *parse_int;
 
-		unsigned *parse_uint;
-	};
+        unsigned *parse_uint;
+    };
 };
 
 /*

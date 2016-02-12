@@ -14,10 +14,10 @@
 #include <unistd.h>
 
 struct server_static {
-	/* Embed */
-	struct server_handler handler;
+    /* Embed */
+    struct server_handler handler;
 
-	const char *root;
+    const char *root;
     const char *path;
     int flags;
 };
@@ -56,11 +56,11 @@ int server_static_lookup_mimetype (const struct server_static_mimetype **mimep, 
  */
 int server_static_file_get (struct server_static *s, struct server_client *client, int fd, const struct stat *stat, const struct server_static_mimetype *mime)
 {
-	int err;
+    int err;
 
-	// respond
-	if ((err = server_response(client, 200, NULL)))
-		return err;
+    // respond
+    if ((err = server_response(client, 200, NULL)))
+        return err;
 
     if (mime && (err = server_response_header(client, "Content-Type", "%s", mime->content_type)))
         return err;
@@ -73,7 +73,7 @@ int server_static_file_get (struct server_static *s, struct server_client *clien
         // XXX: empty file
     }
 
-	return 0;
+    return 0;
 }
 
 int server_static_file_put (struct server_static *s, struct server_client *client, int fd, const struct server_static_mimetype *mime)
@@ -85,8 +85,8 @@ int server_static_file_put (struct server_static *s, struct server_client *clien
         return err;
 
     // done
-	if ((err = server_response(client, 201, NULL)))
-		return err;
+    if ((err = server_response(client, 201, NULL)))
+        return err;
 
     return 0;
 }
@@ -111,16 +111,16 @@ static int server_static_dir_item (struct server_client *client, const char *pat
  */
 int server_static_dir (struct server_static *s, struct server_client *client, DIR *dir, const struct url *url)
 {
-	struct dirent *d;
-	int err;
+    struct dirent *d;
+    int err;
 
     // ensure dir path ends in /
     if (*url->path && url->path[strlen(url->path) - 1] != '/') {
         return server_response_redirect(client, NULL, "%s/", url->path);
     }
 
-	if ((err = server_response(client, 200, NULL)))
-		return err;
+    if ((err = server_response(client, 200, NULL)))
+        return err;
 
     err |= server_response_header(client, "Content-Type", "text/html");
     
@@ -143,7 +143,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
     }
     
     // directory items
-	while ((d = readdir(dir))) {
+    while ((d = readdir(dir))) {
         const struct server_static_mimetype *mime = NULL;
         
         // ignore hidden files
@@ -166,7 +166,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
         
         if ((err = server_static_dir_item(client, d->d_name, isdir, glyphicon, title)))
             break;
-	}
+    }
     
     err |= server_response_print(client, 
             "\t\t</ul>\n"
@@ -174,7 +174,7 @@ int server_static_dir (struct server_static *s, struct server_client *client, DI
             "</html>\n"
             );
 
-	return err;
+    return err;
 }
 
 /*
@@ -204,7 +204,7 @@ enum http_status server_static_error ()
 int server_static_lookup (struct server_static *ss, const char *path, int create, int *fdp, struct stat *statp, const struct server_static_mimetype **mimep)
 {
     char name[PATH_MAX] = { 0 };
-	int dirfd = 0, filefd = 0; // assume not using stdin
+    int dirfd = 0, filefd = 0; // assume not using stdin
     int ret = 0;
     
     // strip off the leading prefix for our handler
@@ -382,23 +382,23 @@ error:
  */
 int server_static_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
-	struct server_static *ss = (struct server_static *) handler;
+    struct server_static *ss = (struct server_static *) handler;
     const struct server_static_mimetype *mime = NULL;
 
-	int fd = -1;
-	struct stat stat;
-	int ret = 0;
+    int fd = -1;
+    struct stat stat;
+    int ret = 0;
     int create;
 
-	// see if there are any interesting request headers
-	const char *header, *value;
+    // see if there are any interesting request headers
+    const char *header, *value;
 
-	while (!(ret = server_request_header(client, &header, &value))) {
+    while (!(ret = server_request_header(client, &header, &value))) {
 
-	}
+    }
 
-	if (ret < 0)
-		goto error;
+    if (ret < 0)
+        goto error;
 
     // lookup
     if (strcasecmp(method, "GET") == 0 && (ss->flags & SERVER_STATIC_GET)) {
@@ -416,78 +416,78 @@ int server_static_request (struct server_handler *handler, struct server_client 
         return ret;
     }
 
-	log_info("%s %s %s %s", ss->root, method, url->path, mime ? mime->content_type : "(unknown mimetype)");
-	
-	// check
-	if ((stat.st_mode & S_IFMT) == S_IFREG && create) {
+    log_info("%s %s %s %s", ss->root, method, url->path, mime ? mime->content_type : "(unknown mimetype)");
+    
+    // check
+    if ((stat.st_mode & S_IFMT) == S_IFREG && create) {
         // put new file
         ret = server_static_file_put(ss, client, fd, mime);
 
     } else if ((stat.st_mode & S_IFMT) == S_IFREG) {
         // get existing file
         ret = server_static_file_get(ss, client, fd, &stat, mime);
-	
-	} else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
-		DIR *dir;
+    
+    } else if ((stat.st_mode & S_IFMT) == S_IFDIR) {
+        DIR *dir;
         
-		if (create) {
-			log_warning("cannot create directory: %s", url->path);
-			return 405;
-		}
+        if (create) {
+            log_warning("cannot create directory: %s", url->path);
+            return 405;
+        }
 
-		if (!(dir = fdopendir(fd))) {
-			log_pwarning("fdiropen");
-			ret = -1;
-			goto error;
-		} else {
+        if (!(dir = fdopendir(fd))) {
+            log_pwarning("fdiropen");
+            ret = -1;
+            goto error;
+        } else {
             fd = -1;
-		}
-		
-		ret = server_static_dir(ss, client, dir, url);
+        }
+        
+        ret = server_static_dir(ss, client, dir, url);
 
-		if (closedir(dir)) {
-			log_pwarning("closedir");
-		}
+        if (closedir(dir)) {
+            log_pwarning("closedir");
+        }
 
-	} else {
-		log_warning("%s/%s: not a file", ss->root, url->path);
-		ret = 404;
-		goto error;
-	}
-	
+    } else {
+        log_warning("%s/%s: not a file", ss->root, url->path);
+        ret = 404;
+        goto error;
+    }
+    
 error:
     if (fd >= 0)
         close(fd);
         
-	return ret;
+    return ret;
 }
 
 int server_static_create (struct server_static **sp, const char *root, struct server *server, const char *path, int flags)
 {
-	struct server_static *s;
+    struct server_static *s;
 
-	if (!(s = calloc(1, sizeof(*s)))) {
-		log_perror("calloc");
-		return -1;
-	}
-	
-	s->root = root;
+    if (!(s = calloc(1, sizeof(*s)))) {
+        log_perror("calloc");
+        return -1;
+    }
+    
+    s->root = root;
     s->path = path;
     s->flags = flags;
 
-	s->handler.request = server_static_request;
+    s->handler.request = server_static_request;
 
     const char *method = (flags & SERVER_STATIC_PUT) ? "PUT" : "GET";
 
     log_info("%s %s -> %s", method, path, root);
 
-	if (server_add_handler(server, method, path, &s->handler)) {
+    if (server_add_handler(server, method, path, &s->handler)) {
         log_error("server_add_handler");
         goto error;
     }
 
-	*sp = s;
-	return 0;
+    *sp = s;
+    return 0;
 
 error:
     free(s);
@@ -496,5 +496,5 @@ error:
 
 void server_static_destroy (struct server_static *s)
 {
-	free(s);
+    free(s);
 }

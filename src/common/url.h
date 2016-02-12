@@ -4,12 +4,12 @@
 #include <stdio.h>
 
 struct url {
-	const char *scheme;
-	const char *host;
-	const char *port;
+    const char *scheme;
+    const char *host;
+    const char *port;
 
-	/* URL path *without* leading / */
-	const char *path;
+    /* URL path *without* leading / */
+    const char *path;
     
     /* Any ?... query string */
     const char *query;
@@ -19,9 +19,9 @@ struct url {
 #define URL_MAX 1024
 
 struct urlbuf {
-	char buf[URL_MAX];
+    char buf[URL_MAX];
 
-	struct url url;
+    struct url url;
 };
 
 /*

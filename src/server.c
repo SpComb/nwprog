@@ -16,10 +16,10 @@
 
 struct options {
     FILE *log_file;
-	bool daemon;
+    bool daemon;
     unsigned nfiles;
-	const char *iam;
-	const char *S;
+    const char *iam;
+    const char *S;
     const char *U;
     bool dns;
     const char *resolver;
@@ -32,46 +32,46 @@ struct options {
 };
 
 static const struct option main_options[] = {
-	{ "help",		0, 	NULL,		'h' },
-	{ "quiet",		0, 	NULL,		'q' },
-	{ "verbose",	0,	NULL,		'v'	},
-	{ "debug",		0,	NULL,		'd'	},
+    { "help",        0,     NULL,        'h' },
+    { "quiet",        0,     NULL,        'q' },
+    { "verbose",    0,    NULL,        'v'    },
+    { "debug",        0,    NULL,        'd'    },
     { "log-file",   1,  NULL,       'L' },
 
-	{ "daemon",		0,	NULL,		'D'	},
+    { "daemon",        0,    NULL,        'D'    },
     { "nfiles",     1,  NULL,       'N' },
 
-	{ "iam",		1,	NULL,		'I' },
-	{ "static",		1,	NULL,		'S' },
+    { "iam",        1,    NULL,        'I' },
+    { "static",        1,    NULL,        'S' },
     { "upload",     1,  NULL,       'U' },
     { "dns",        0,  NULL,       'P' },
 
     { "resolver",   1,  NULL,       'R' },
 
-	{ }
+    { }
 };
 
 void help (const char *argv0) {
-	printf(
-			"Usage: %s [options] <listen> [<listen>] [...]\n"
-			"\n"
-			"   -h --help           Display this text\n"
-			"   -q --quiet          Less output\n"
-			"   -v --verbose        More output\n"
-			"   -d --debug          Debug output\n"
+    printf(
+            "Usage: %s [options] <listen> [<listen>] [...]\n"
+            "\n"
+            "   -h --help           Display this text\n"
+            "   -q --quiet          Less output\n"
+            "   -v --verbose        More output\n"
+            "   -d --debug          Debug output\n"
             "   -L --log-file       Write log to given file\n"
-			"\n"
-			"   -D --daemon         Daemonize\n"
+            "\n"
+            "   -D --daemon         Daemonize\n"
             "   -N --nfiles         Limit number of open files\n"
-			"\n"
-			"   -I --iam=username   Send Iam header\n"
-			"   -S --static=path    Serve static files from /\n"
+            "\n"
+            "   -I --iam=username   Send Iam header\n"
+            "   -S --static=path    Serve static files from /\n"
             "   -U --upload=path    Accept PUT files to /upload\n"
             "   -P --dns            Serve POST requests to /dns-query\n"
             "\n"
             "   -R --resolver       DNS resolver address\n"
-			"\n"
-	, argv0);
+            "\n"
+    , argv0);
 }
 
 /*
@@ -111,51 +111,51 @@ int init_nfiles (struct options *options, struct event_main *event_main)
 
 int main_listen (struct options *options, const char *arg)
 {
-	struct urlbuf urlbuf;
-	int err;
+    struct urlbuf urlbuf;
+    int err;
 
-	if ((err = urlbuf_parse(&urlbuf, arg))) {
-		log_fatal("invalid server url: %s", arg);
+    if ((err = urlbuf_parse(&urlbuf, arg))) {
+        log_fatal("invalid server url: %s", arg);
         return err;
-	}
+    }
 
-	log_info("%s: host=%s port=%s path=%s iam=%s", arg, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path, options->iam);
+    log_info("%s: host=%s port=%s path=%s iam=%s", arg, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path, options->iam);
 
-	if ((err = server_listen(options->server, urlbuf.url.host, urlbuf.url.port))) {
-		log_fatal("server_listen %s %s", urlbuf.url.host, urlbuf.url.port);
+    if ((err = server_listen(options->server, urlbuf.url.host, urlbuf.url.port))) {
+        log_fatal("server_listen %s %s", urlbuf.url.host, urlbuf.url.port);
         return err;
-	}
+    }
 
-	return 0;
+    return 0;
 }
 
 int main (int argc, char **argv)
 {
-	int opt, longopt;
-	enum log_level log_level = LOG_WARNING;
-	int err = 0;
-	struct options options = {
-		.iam	    = getlogin(),
-	};
+    int opt, longopt;
+    enum log_level log_level = LOG_WARNING;
+    int err = 0;
+    struct options options = {
+        .iam        = getlogin(),
+    };
     struct event_main *event_main;
 
-	while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:PR:", main_options, &longopt)) >= 0) {
-		switch (opt) {
-			case 'h':
-				help(argv[0]);
-				return 0;
+    while ((opt = getopt_long(argc, argv, "hqvdL:DN:I:S:U:PR:", main_options, &longopt)) >= 0) {
+        switch (opt) {
+            case 'h':
+                help(argv[0]);
+                return 0;
 
-			case 'q':
-				log_level = LOG_ERROR;
-				break;
+            case 'q':
+                log_level = LOG_ERROR;
+                break;
 
-			case 'v':
-				log_level = LOG_INFO;
-				break;
+            case 'v':
+                log_level = LOG_INFO;
+                break;
 
-			case 'd':
-				log_level = LOG_DEBUG;
-				break;
+            case 'd':
+                log_level = LOG_DEBUG;
+                break;
 
             case 'L':
                 if (!(options.log_file = fopen(optarg, "a"))) {
@@ -164,8 +164,8 @@ int main (int argc, char **argv)
                 }
                 break;
 
-			case 'D':
-				options.daemon = true;
+            case 'D':
+                options.daemon = true;
                 break;
 
             case 'N':
@@ -179,9 +179,9 @@ int main (int argc, char **argv)
                 options.iam = optarg;
                 break;
 
-			case 'S':
-				options.S = optarg;
-				break;
+            case 'S':
+                options.S = optarg;
+                break;
 
             case 'U':
                 options.U = optarg;
@@ -195,16 +195,16 @@ int main (int argc, char **argv)
                 options.resolver = optarg;
                 break;
 
-			default:
-				help(argv[0]);
-				return 1;
-		}
-	}
+            default:
+                help(argv[0]);
+                return 1;
+        }
+    }
 
     // setup
-	log_set_level(log_level);
+    log_set_level(log_level);
 
-	daemon_init();
+    daemon_init();
 
     if ((err = event_main_create(&event_main))) {
         log_fatal("event_main_create");
@@ -217,18 +217,18 @@ int main (int argc, char **argv)
     }
 
     // apply
-	if ((err = server_create(event_main, &options.server))) {
-		log_fatal("server_create");
+    if ((err = server_create(event_main, &options.server))) {
+        log_fatal("server_create");
         goto error;
-	}
+    }
 
     // more-specifics first!
-	if (options.U) {
-		if ((err = server_static_create(&options.server_upload, options.U, options.server, "upload/", SERVER_STATIC_PUT))) {
-			log_fatal("server_static_create: %s", options.U);
-			goto error;
-		}
-	}
+    if (options.U) {
+        if ((err = server_static_create(&options.server_upload, options.U, options.server, "upload/", SERVER_STATIC_PUT))) {
+            log_fatal("server_static_create: %s", options.U);
+            goto error;
+        }
+    }
 
     if (options.dns) {
         if ((err = server_dns_create(&options.server_dns, options.server, "dns-query/",
@@ -239,12 +239,12 @@ int main (int argc, char **argv)
         }
     }
 
-	if (options.S) {
-		if ((err = server_static_create(&options.server_static, options.S, options.server, "", SERVER_STATIC_GET))) {
-			log_fatal("server_static_add: %s", "/");
-			goto error;
-		}
-	}
+    if (options.S) {
+        if ((err = server_static_create(&options.server_static, options.S, options.server, "", SERVER_STATIC_GET))) {
+            log_fatal("server_static_add: %s", "/");
+            goto error;
+        }
+    }
 
     // headers
     if (options.iam) {
@@ -254,17 +254,17 @@ int main (int argc, char **argv)
         }
     }
 
-	while (optind < argc && !err) {
-		if ((err = main_listen(&options, argv[optind++]))) {
+    while (optind < argc && !err) {
+        if ((err = main_listen(&options, argv[optind++]))) {
             log_fatal("server");
-			goto error;
+            goto error;
         }
-	}
+    }
 
     // run
-	if (options.daemon) {
-		daemon_start();
-	}
+    if (options.daemon) {
+        daemon_start();
+    }
 
     if (options.log_file) {
         log_set_file(options.log_file);
@@ -276,11 +276,11 @@ int main (int argc, char **argv)
     }
 
 error:
-	if (options.server)
-		server_destroy(options.server);
+    if (options.server)
+        server_destroy(options.server);
 
-	if (options.server_static)
-		server_static_destroy(options.server_static);
+    if (options.server_static)
+        server_static_destroy(options.server_static);
     
     if (err)
         return 1;

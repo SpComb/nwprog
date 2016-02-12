@@ -76,24 +76,24 @@ int test_arg (const char *arg)
 
 int main (int argc, char **argv)
 {
-	const char *arg;
+    const char *arg;
     int err = 0;
 
-	// skip argv0
-	argv++;
+    // skip argv0
+    argv++;
     
     if (*argv) {
-		log_set_level(LOG_DEBUG);
+        log_set_level(LOG_DEBUG);
 
         // from args
         while ((arg = *argv++)) {
             err |= test_arg(arg);
         }
     } else {
-		log_set_level(LOG_INFO);
+        log_set_level(LOG_INFO);
 
         err |= test_path();
     }
 
-	return err;
+    return err;
 }

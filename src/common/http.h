@@ -28,18 +28,18 @@ enum http_version {
 };
 
 enum http_status {
-	HTTP_OK						= 200,
-	HTTP_CREATED                = 201,
-	HTTP_FOUND                  = 301,
-	HTTP_BAD_REQUEST			= 400,
-	HTTP_FORBIDDEN              = 403,
-	HTTP_NOT_FOUND				= 404,
-	HTTP_METHOD_NOT_ALLOWED     = 405,
-	HTTP_LENGTH_REQUIRED        = 411,
-	HTTP_REQUEST_ENTITY_TOO_LARGE = 413,
-	HTTP_REQUEST_URI_TOO_LONG   = 414,
+    HTTP_OK                        = 200,
+    HTTP_CREATED                = 201,
+    HTTP_FOUND                  = 301,
+    HTTP_BAD_REQUEST            = 400,
+    HTTP_FORBIDDEN              = 403,
+    HTTP_NOT_FOUND                = 404,
+    HTTP_METHOD_NOT_ALLOWED     = 405,
+    HTTP_LENGTH_REQUIRED        = 411,
+    HTTP_REQUEST_ENTITY_TOO_LARGE = 413,
+    HTTP_REQUEST_URI_TOO_LONG   = 414,
     HTTP_UNSUPPORTED_MEDIA_TYPE = 415,
-	HTTP_INTERNAL_SERVER_ERROR	= 500,
+    HTTP_INTERNAL_SERVER_ERROR    = 500,
 };
 
 /*
@@ -67,13 +67,13 @@ int http_write (struct http *http, const char *buf, size_t size);
  */
 int http_vwrite (struct http *http, const char *fmt, va_list args);
 int http_writef (struct http *http, const char *fmt, ...)
-	__attribute((format (printf, 2, 3)));
+    __attribute((format (printf, 2, 3)));
 
 /*
  * Send a HTTP request line.
  */
 int http_write_request (struct http *http, const char *version, const char *method, const char *fmt, ...)
-	__attribute((format (printf, 4, 5)));
+    __attribute((format (printf, 4, 5)));
 
 /*
  * Send a HTTP response line.
@@ -87,7 +87,7 @@ int http_write_response (struct http *http, const char *version, enum http_statu
  */
 int http_write_headerv (struct http *http, const char *header, const char *fmt, va_list args);
 int http_write_header (struct http *http, const char *header, const char *fmt, ...)
-	__attribute((format (printf, 3, 4)));
+    __attribute((format (printf, 3, 4)));
 
 /*
  * End the HTTP headers.
@@ -113,7 +113,7 @@ int http_write_chunk (struct http *http, const char *buf, size_t size);
  */
 int http_vprint_chunk (struct http *http, const char *fmt, va_list args);
 int http_print_chunk (struct http *http, const char *fmt, ...)
-	__attribute((format (printf, 2, 3)));
+    __attribute((format (printf, 2, 3)));
 
 /*
  * Send a HTTP/1.1 'Transfer-Encoding: chunked' last-chunk and empty trailer.

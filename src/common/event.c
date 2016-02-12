@@ -54,10 +54,10 @@ struct event {
      */
     struct event_task *task;
 
-	/*
-	 * Delayed event_destroy() while within event_main()
-	 */
-	bool destroy;
+    /*
+     * Delayed event_destroy() while within event_main()
+     */
+    bool destroy;
 
     TAILQ_ENTRY(event) event_main_events;
 };
@@ -72,10 +72,10 @@ struct event_task {
     event_task_func *func;
     void *ctx;
 
-	/*
-	 * This task has event_register()'d for the given number of events.
-	 */
-	int registered;
+    /*
+     * This task has event_register()'d for the given number of events.
+     */
+    int registered;
 
     /*
      * This task is event_wait()'ing on some given event.
@@ -300,7 +300,7 @@ int event_register (struct event *event, int flags, const struct timeval *timeou
             log_error("timestamp_now");
             return -1;
         }
-	}
+    }
 
     log_debug("%s[%p] %d(%s%s%s)", task->name, task, event->fd,
             event->flags & EVENT_READ ? "R" : "",
@@ -308,8 +308,8 @@ int event_register (struct event *event, int flags, const struct timeval *timeou
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
 
-	// mark
-	task->registered++;
+    // mark
+    task->registered++;
 
     return 0;
 }
@@ -328,10 +328,10 @@ static int _event_yield (struct event_main *event_main, struct event **eventp)
         return -1;
     }
 
-	if (!task->registered) {
-		log_debug("event_main_yield for %s[%p] without any registered events", task->name, task);
-		return 1;
-	}
+    if (!task->registered) {
+        log_debug("event_main_yield for %s[%p] without any registered events", task->name, task);
+        return 1;
+    }
 
     log_debug("<- %s[%p]", task->name, task);
 
@@ -344,55 +344,55 @@ static int _event_yield (struct event_main *event_main, struct event **eventp)
             event->flags & EVENT_WRITE ? "W" : "",
             event->flags & EVENT_TIMEOUT ? "T" : ""
     );
-	
-	// XXX: this might underflow in some really weird circumstances
-	task->registered--;
+    
+    // XXX: this might underflow in some really weird circumstances
+    task->registered--;
 
-	if (*eventp && event != *eventp) {
-		log_fatal("%s[%p] unexpected return from yield on %d[%p] to %d[%p",
-				task->name, task,
-				(*eventp)->fd, (*eventp),
-				event->fd, event
-		);
-		return -1;
-	}
+    if (*eventp && event != *eventp) {
+        log_fatal("%s[%p] unexpected return from yield on %d[%p] to %d[%p",
+                task->name, task,
+                (*eventp)->fd, (*eventp),
+                event->fd, event
+        );
+        return -1;
+    }
 
-	*eventp = event;
-	task->event = NULL;
+    *eventp = event;
+    task->event = NULL;
 
-	return 0;
+    return 0;
 }
 
 int event_main_yield (struct event_main *event_main, struct event **eventp)
 {
-	struct event_task *task = event_main->task;
-	struct event *event = NULL;
+    struct event_task *task = event_main->task;
+    struct event *event = NULL;
 
-	if (_event_yield(event_main, &event)) {
-		log_warning("_event_yield");
-		return -1;
-	}
-	
+    if (_event_yield(event_main, &event)) {
+        log_warning("_event_yield");
+        return -1;
+    }
+    
     // read event state, TODO: timeouts
     int flags = event->flags;
     
     // clear yield state
     event->flags = 0;
     event->task = NULL;
-	
-	// ok
-	*eventp = event;
+    
+    // ok
+    *eventp = event;
 
-	return 0;
+    return 0;
 }
 
 int event_yield (struct event *event, int flags, const struct timeval *timeout)
 {
-	if (event_register(event, flags, timeout))
-		return -1;
-	
-	if (_event_yield(event->event_main, &event))
-		return -1;
+    if (event_register(event, flags, timeout))
+        return -1;
+    
+    if (_event_yield(event->event_main, &event))
+        return -1;
 
     // read event state
     flags = event->flags;
@@ -409,12 +409,12 @@ int event_yield (struct event *event, int flags, const struct timeval *timeout)
 
 int event_sleep (struct event *event, const struct timeval *timeout)
 {
-	if (event_register(event, EVENT_TIMEOUT, timeout))
-		return -1;
+    if (event_register(event, EVENT_TIMEOUT, timeout))
+        return -1;
 
-	// yield on event
-	if (_event_yield(event->event_main, &event))
-		return -1;
+    // yield on event
+    if (_event_yield(event->event_main, &event))
+        return -1;
 
     // read event state
     int flags = event->flags;
@@ -424,7 +424,7 @@ int event_sleep (struct event *event, const struct timeval *timeout)
     event->task = NULL;
 
     if (flags != EVENT_TIMEOUT) {
-		struct event_task *task = event->event_main->task;
+        struct event_task *task = event->event_main->task;
 
         log_warning("Task %s[%p] woke up from sleep with non-TIMEOUT flags: %x", task->name, task, flags);
     }
@@ -508,37 +508,37 @@ int event_notify (struct event *event, struct event_task **notifyp)
 
 void event_destroy (struct event *event)
 {
-	if (event->task && event->task->registered) {
-		log_debug("%d[%p] unregistering from task %s[%p]",
-				event->fd, event,
-				event->task->name, event->task
-		);
-		event->task->registered--;
+    if (event->task && event->task->registered) {
+        log_debug("%d[%p] unregistering from task %s[%p]",
+                event->fd, event,
+                event->task->name, event->task
+        );
+        event->task->registered--;
 
-	} else if (event->task) {
-		log_fatal("%d[%p] with pending task %s[%p]",
-				event->fd, event,
-				event->task->name, event->task
-		);
-	}
+    } else if (event->task) {
+        log_fatal("%d[%p] with pending task %s[%p]",
+                event->fd, event,
+                event->task->name, event->task
+        );
+    }
 
-	event->task = NULL;
+    event->task = NULL;
 
-	if (event->event_main->task) {
-		log_debug("%d[%p] delaying destroy() from task %s[%p]",
-				event->fd, event,
-				event->event_main->task->name, event->event_main->task
-		);
+    if (event->event_main->task) {
+        log_debug("%d[%p] delaying destroy() from task %s[%p]",
+                event->fd, event,
+                event->event_main->task->name, event->event_main->task
+        );
 
-		event->destroy = true;
+        event->destroy = true;
 
-	} else {
-		log_debug("%d[%p]", event->fd, event);
+    } else {
+        log_debug("%d[%p]", event->fd, event);
 
-		TAILQ_REMOVE(&event->event_main->events, event, event_main_events);
+        TAILQ_REMOVE(&event->event_main->events, event, event_main_events);
 
-		free(event);
-	}
+        free(event);
+    }
 }
 
 int event_main_run (struct event_main *event_main)
@@ -555,21 +555,21 @@ int event_main_run (struct event_main *event_main)
         FD_ZERO(&read);
         FD_ZERO(&write);
 
-		// event_destroy -safe loop...
-		struct event *event_next;
+        // event_destroy -safe loop...
+        struct event *event_next;
 
-		for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
-			event_next = TAILQ_NEXT(event, event_main_events);
+        for (event = TAILQ_FIRST(&event_main->events); event; event = event_next) {
+            event_next = TAILQ_NEXT(event, event_main_events);
 
-			// ...delayed GC
-			if (event->destroy) {
-				event_destroy(event);
-				continue;
-			}
+            // ...delayed GC
+            if (event->destroy) {
+                event_destroy(event);
+                continue;
+            }
 
             // select's FD_SET only supports fd's under a certain limit (e.g. 1k), larger ones invoke undefined behaviour.
             assert(event->fd < FD_SETSIZE);
-				
+                
             if (event->flags & EVENT_READ)
                 FD_SET(event->fd, &read);
             
@@ -635,7 +635,7 @@ int event_main_run (struct event_main *event_main)
 
                 // notify
                 timeout_event->flags = EVENT_TIMEOUT;
-				task->event = timeout_event;
+                task->event = timeout_event;
                 
                 // NOTE: this may event_destroy(timeout_event)
                 event_switch(event_main, &task);
@@ -655,10 +655,10 @@ int event_main_run (struct event_main *event_main)
                 if (FD_ISSET(event->fd, &write) && (event->flags & EVENT_WRITE))
                     flags |= EVENT_WRITE;
 
-				if (!flags) {
-					// maybe next time!
-				
-				} else if (event->task) {
+                if (!flags) {
+                    // maybe next time!
+                
+                } else if (event->task) {
                     struct event_task *task = event->task;
 
                     event->flags = flags;
@@ -666,11 +666,11 @@ int event_main_run (struct event_main *event_main)
                     
                     // this may event_destroy(event)
                     event_switch(event_main, &task);
-				} else if (event->destroy) {
-					log_debug("ignore destroyed event %d[%p] activation", event->fd, event);
-				} else {
-					log_fatal("spurious event %d[%p] activation", event->fd, event);
-				}
+                } else if (event->destroy) {
+                    log_debug("ignore destroyed event %d[%p] activation", event->fd, event);
+                } else {
+                    log_fatal("spurious event %d[%p] activation", event->fd, event);
+                }
             }
         }
     }

@@ -11,11 +11,11 @@ struct test_parse {
     const struct url url;
 } parse_tests[] = {
     { "",                   { .host = "" } },
-    { "foo",                { .host	= "foo" } },
+    { "foo",                { .host    = "foo" } },
     { "/foo",               { .path = "foo" } },
     { "//foo",              { .host = "foo" } },
     
-	{ "host:port",                	{ .host	= "host", .port = "port" } },
+    { "host:port",                    { .host    = "host", .port = "port" } },
 
     { "//host/path",                { .host = "host", .path = "path" } },
     { "//host:port/path",           { .host = "host", .port = "port", .path = "path" } },
@@ -48,11 +48,11 @@ int test_url_parse (struct test_parse *test)
     struct urlbuf urlbuf;
 
     if (urlbuf_parse(&urlbuf, test->str)) { 
-		log_error("failed to parse url");
-		return -1;
-	}
+        log_error("failed to parse url");
+        return -1;
+    }
 
-	log_debug("%s: scheme=%s, host=%s, port=%s, path=%s", test->str, urlbuf.url.scheme, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path);
+    log_debug("%s: scheme=%s, host=%s, port=%s, path=%s", test->str, urlbuf.url.scheme, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path);
     
     int err = 0;
 
@@ -82,8 +82,8 @@ int test_url_error (const char *str)
         return 0;
     } else {
         log_warning("[FAIL] %s", str);
-		return 1;
-	}
+        return 1;
+    }
 }
 
 struct test_decode {
@@ -146,36 +146,36 @@ int test_arg (const char *str)
     struct urlbuf urlbuf;
 
     if (urlbuf_parse(&urlbuf, str)) { 
-		log_error("failed to parse url");
-		return 1;
-	}
+        log_error("failed to parse url");
+        return 1;
+    }
 
-	log_info("%s: scheme=%s, host=%s, port=%s, path=%s", str, urlbuf.url.scheme, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path);
+    log_info("%s: scheme=%s, host=%s, port=%s, path=%s", str, urlbuf.url.scheme, urlbuf.url.host, urlbuf.url.port, urlbuf.url.path);
 
-	url_dump(&urlbuf.url, stdout);
-	printf("\n");
+    url_dump(&urlbuf.url, stdout);
+    printf("\n");
 
-	return 0;
+    return 0;
 }
 
 int main (int argc, char **argv)
 {
-	const char *arg;
+    const char *arg;
     int err;
 
-	
-	// skip argv0
-	argv++;
+    
+    // skip argv0
+    argv++;
     
     if (*argv) {
-		log_set_level(LOG_DEBUG);
+        log_set_level(LOG_DEBUG);
 
         // from args
         while ((arg = *argv++)) {
             err |= test_arg(arg);
         }
     } else {
-		log_set_level(LOG_INFO);
+        log_set_level(LOG_INFO);
 
         for (struct test_parse *test = parse_tests; test->str; test++) {
             err |= test_url_parse(test);
@@ -191,5 +191,5 @@ int main (int argc, char **argv)
 
     }
 
-	return err;
+    return err;
 }

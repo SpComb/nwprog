@@ -16,10 +16,10 @@ struct server {
     struct event_main *event_main;
     
     /* Listen tasks */
-	TAILQ_HEAD(server_listens, server_listen) listens;
+    TAILQ_HEAD(server_listens, server_listen) listens;
 
     /* Handler lookup */
-	TAILQ_HEAD(server_handlers, server_handler_item) handlers;
+    TAILQ_HEAD(server_handlers, server_handler_item) handlers;
 
     /* Response headers */
     TAILQ_HEAD(server_headers, server_header) headers;
@@ -33,12 +33,12 @@ struct server_listen {
 };
 
 struct server_handler_item {
-	const char *method;
-	const char *path;
+    const char *method;
+    const char *path;
 
-	struct server_handler *handler;
+    struct server_handler *handler;
 
-	TAILQ_ENTRY(server_handler_item) server_handlers;
+    TAILQ_ENTRY(server_handler_item) server_handlers;
 };
 
 struct server_header {
@@ -51,9 +51,9 @@ struct server_header {
 struct server_client {
     struct server *server;
     struct tcp *tcp;
-	struct http *http;
+    struct http *http;
 
-	/* Request */
+    /* Request */
     struct server_request {
         /* Storage for request method field */
         char method[HTTP_METHOD_MAX];
@@ -92,8 +92,8 @@ struct server_client {
         char *post_form;
 
     } request;
-	
-	/* Response */
+    
+    /* Response */
     struct server_response {
         /* The response status has been sent */
         unsigned status;
@@ -130,48 +130,48 @@ static const struct timeval SERVER_WRITE_TIMEOUT = { .tv_sec = 10 };
 
 int server_create (struct event_main *event_main, struct server **serverp)
 {
-	struct server *server = NULL;
+    struct server *server = NULL;
 
-	if (!(server = calloc(1, sizeof(*server)))) {
-		log_perror("calloc");
-		return -1;
-	}
+    if (!(server = calloc(1, sizeof(*server)))) {
+        log_perror("calloc");
+        return -1;
+    }
 
-	TAILQ_INIT(&server->listens);
-	TAILQ_INIT(&server->handlers);
+    TAILQ_INIT(&server->listens);
+    TAILQ_INIT(&server->handlers);
     TAILQ_INIT(&server->headers);
 
     server->event_main = event_main;
 
-	*serverp = server;
+    *serverp = server;
 
-	return 0;
+    return 0;
 }
 
 int server_add_handler (struct server *server, const char *method, const char *path, struct server_handler *handler)
 {
-	struct server_handler_item *h = NULL;
+    struct server_handler_item *h = NULL;
 
-	if (!handler) {
-		log_fatal("NULL handler given");
-		return -1;
-	}
+    if (!handler) {
+        log_fatal("NULL handler given");
+        return -1;
+    }
 
-	if (!(h = calloc(1, sizeof(*h)))) {
-		log_pwarning("calloc");
-		return -1;
-	}
+    if (!(h = calloc(1, sizeof(*h)))) {
+        log_pwarning("calloc");
+        return -1;
+    }
 
-	h->method = method;
-	h->path = path;
-	h->handler = handler;
+    h->method = method;
+    h->path = path;
+    h->handler = handler;
 
-	TAILQ_INSERT_TAIL(&server->handlers, h, server_handlers);
+    TAILQ_INSERT_TAIL(&server->handlers, h, server_handlers);
 
     // export state to handler
     handler->event_main = server->event_main;
 
-	return 0;
+    return 0;
 }
 
 /*
@@ -210,27 +210,27 @@ int server_match_handler_path (struct server_handler_item *handler, const char *
  */
 int server_lookup_handler (struct server *server, const char *method, const char *path, struct server_handler **handlerp)
 {
-	struct server_handler_item *h;
-	enum http_status status = 404;
+    struct server_handler_item *h;
+    enum http_status status = 404;
 
-	TAILQ_FOREACH(h, &server->handlers, server_handlers) {
-		if (h->path && server_match_handler_path(h, path))
-			continue;
+    TAILQ_FOREACH(h, &server->handlers, server_handlers) {
+        if (h->path && server_match_handler_path(h, path))
+            continue;
 
-		if (h->method && strcmp(h->method, method)) {
-			// chain along so that a matching path but mismatching method is 405
-			status = 405;
-			continue;
-		}
+        if (h->method && strcmp(h->method, method)) {
+            // chain along so that a matching path but mismatching method is 405
+            status = 405;
+            continue;
+        }
 
-		log_debug("%s", h->path);
+        log_debug("%s", h->path);
 
-		*handlerp = h->handler;
-		return 0;
-	}
+        *handlerp = h->handler;
+        return 0;
+    }
 
-	log_warning("%s: %d", path, status);
-	return status;
+    log_warning("%s: %d", path, status);
+    return status;
 }
 
 int server_add_header (struct server *server, const char *name, const char *value)
@@ -272,30 +272,30 @@ error:
  */
 int server_request (struct server_client *client)
 {
-	const char *method, *path, *version;
-	int err;
+    const char *method, *path, *version;
+    int err;
 
     if (client->request.request) {
         log_fatal("re-reading request");
         return -1;
     }
 
-	if ((err = http_read_request(client->http, &method, &path, &version)))
+    if ((err = http_read_request(client->http, &method, &path, &version)))
         return err;
 
-	if (strlen(method) >= sizeof(client->request.method)) {
-		log_warning("method is too long: %zu", strlen(method));
-		return 400;
-	} else {
-		strncpy(client->request.method, method, sizeof(client->request.method));
-	}
+    if (strlen(method) >= sizeof(client->request.method)) {
+        log_warning("method is too long: %zu", strlen(method));
+        return 400;
+    } else {
+        strncpy(client->request.method, method, sizeof(client->request.method));
+    }
 
-	if (strlen(path) >= sizeof(client->request.pathbuf)) {
-		log_warning("path is too long: %zu", strlen(path));
-		return 400;
-	} else {
-		strncpy(client->request.pathbuf, path, sizeof(client->request.pathbuf));
-	}
+    if (strlen(path) >= sizeof(client->request.pathbuf)) {
+        log_warning("path is too long: %zu", strlen(path));
+        return 400;
+    } else {
+        strncpy(client->request.pathbuf, path, sizeof(client->request.pathbuf));
+    }
     
     if ((err = url_parse(&client->request.url, client->request.pathbuf))) {
         log_warning("url_parse: %s", client->request.pathbuf);
@@ -310,7 +310,7 @@ int server_request (struct server_client *client)
 
     // mark as read
     client->request.request = true;
-	
+    
     log_info("%s %s %s", method, path, version);
 
     if (strcasecmp(version, "HTTP/1.0") == 0) {
@@ -333,7 +333,7 @@ int server_request (struct server_client *client)
         client->request.post = true;
     }
 
-	return 0;
+    return 0;
 }
 
 int server_request_query (struct server_client *client, const char **keyp, const char **valuep)
@@ -345,7 +345,7 @@ int server_request_query (struct server_client *client, const char **keyp, const
 
 int server_request_header (struct server_client *client, const char **namep, const char **valuep)
 {
-	int err;
+    int err;
 
     if (!client->request.request) {
         log_fatal("premature read of request headers before request line");
@@ -359,7 +359,7 @@ int server_request_header (struct server_client *client, const char **namep, con
         return 1;
     }
 
-	if ((err = http_read_header(client->http, namep, valuep)) < 0) {
+    if ((err = http_read_header(client->http, namep, valuep)) < 0) {
         log_warning("http_read_header");
         return err;
     }
@@ -376,28 +376,28 @@ int server_request_header (struct server_client *client, const char **namep, con
     // mark as having read some headers
     client->request.header = true;
 
-	log_info("\t%20s : %s", *namep, *valuep);
+    log_info("\t%20s : %s", *namep, *valuep);
 
-	if (strcasecmp(*namep, "Content-Length") == 0) {
-		if (sscanf(*valuep, "%zu", &client->request.content_length) != 1) {
-			log_warning("invalid content_length: %s", *valuep);
-			return 400;
-		}
+    if (strcasecmp(*namep, "Content-Length") == 0) {
+        if (sscanf(*valuep, "%zu", &client->request.content_length) != 1) {
+            log_warning("invalid content_length: %s", *valuep);
+            return 400;
+        }
 
-		log_debug("content_length=%zu", client->request.content_length);
+        log_debug("content_length=%zu", client->request.content_length);
 
-	} else if (strcasecmp(*namep, "Host") == 0) {
-		if (strlen(*valuep) >= sizeof(client->request.hostbuf)) {
-			log_warning("host is too long: %zu", strlen(*valuep));
-			return 400;
-		} else {
-			strncpy(client->request.hostbuf, *valuep, sizeof(client->request.hostbuf));
-		}
+    } else if (strcasecmp(*namep, "Host") == 0) {
+        if (strlen(*valuep) >= sizeof(client->request.hostbuf)) {
+            log_warning("host is too long: %zu", strlen(*valuep));
+            return 400;
+        } else {
+            strncpy(client->request.hostbuf, *valuep, sizeof(client->request.hostbuf));
+        }
         
         // TODO: parse :port?
         client->request.url.host = client->request.hostbuf;
 
-	} else if (strcasecmp(*namep, "Connection") == 0) {
+    } else if (strcasecmp(*namep, "Connection") == 0) {
         if (strcasecmp(*valuep, "close") == 0) {
             log_debug("using connection-close");
 
@@ -420,8 +420,8 @@ int server_request_header (struct server_client *client, const char **namep, con
             client->request.content_form = true;
         }
     }
-	
-	return 0;
+    
+    return 0;
 }
 
 int server_request_form (struct server_client *client, const char **keyp, const char **valuep)
@@ -479,7 +479,7 @@ int server_request_param (struct server_client *client, const char **keyp, const
 
 int server_request_file (struct server_client *client, int fd)
 {
-	int err;
+    int err;
 
     if (!client->request.headers) {
         log_fatal("read request body without reading headers!?");
@@ -493,41 +493,41 @@ int server_request_file (struct server_client *client, int fd)
         return -1;
     }
 
-	// TODO: Transfer-Encoding?
-	if (!client->request.content_length) {
-		log_debug("no request body given");
-		return 411;
-	}
-		
-	if (((err = http_read_file(client->http, fd, client->request.content_length)))){
-		log_warning("http_read_file");
-		return err;
-	}
+    // TODO: Transfer-Encoding?
+    if (!client->request.content_length) {
+        log_debug("no request body given");
+        return 411;
+    }
+        
+    if (((err = http_read_file(client->http, fd, client->request.content_length)))){
+        log_warning("http_read_file");
+        return err;
+    }
 
     client->request.body = true;
-	
-	return 0;
+    
+    return 0;
 }
 
 int server_response (struct server_client *client, enum http_status status, const char *reason)
 {
     int err;
 
-	if (client->response.status) {
-		log_fatal("attempting to re-send status: %u", status);
-		return -1;
-	}
+    if (client->response.status) {
+        log_fatal("attempting to re-send status: %u", status);
+        return -1;
+    }
 
     const char *version = client->request.http11 ? "HTTP/1.1" : "HTTP/1.0";
 
-	log_info("%s %u %s", version, status, reason);
+    log_info("%s %u %s", version, status, reason);
 
-	client->response.status = status;
+    client->response.status = status;
 
-	if ((err = http_write_response(client->http, version, status, reason))) {
-		log_error("failed to write response line");
-		return err;
-	}
+    if ((err = http_write_response(client->http, version, status, reason))) {
+        log_error("failed to write response line");
+        return err;
+    }
 
     // custom headers
     struct server_header *header;
@@ -538,57 +538,57 @@ int server_response (struct server_client *client, enum http_status status, cons
             return -1;
         }
     }
-	
-	return 0;
+    
+    return 0;
 }
 
 int server_response_header (struct server_client *client, const char *name, const char *fmt, ...)
 {
-	int err;
+    int err;
 
-	if (!client->response.status) {
-		log_fatal("attempting to send headers without status: %s", name);
-		return -1;
-	}
+    if (!client->response.status) {
+        log_fatal("attempting to send headers without status: %s", name);
+        return -1;
+    }
 
-	if (client->response.headers) {
-		log_fatal("attempting to re-send headers");
-		return -1;
-	}
+    if (client->response.headers) {
+        log_fatal("attempting to re-send headers");
+        return -1;
+    }
 
-	va_list args;
+    va_list args;
 
-	log_info("\t%20s : %s", name, fmt);
+    log_info("\t%20s : %s", name, fmt);
 
-	client->response.header = true;
+    client->response.header = true;
 
-	va_start(args, fmt);
-	err = http_write_headerv(client->http, name, fmt, args);
-	va_end(args);
-	
-	if (err) {
-		log_error("failed to write response header line");
-		return -1;
-	}
+    va_start(args, fmt);
+    err = http_write_headerv(client->http, name, fmt, args);
+    va_end(args);
+    
+    if (err) {
+        log_error("failed to write response header line");
+        return -1;
+    }
 
-	return 0;
+    return 0;
 }
 
 int server_response_headers (struct server_client *client)
 {
-	client->response.headers = true;
+    client->response.headers = true;
 
-	if (http_write_headers(client->http)) {
-		log_error("failed to write end-of-headers");
-		return -1;
-	}
+    if (http_write_headers(client->http)) {
+        log_error("failed to write end-of-headers");
+        return -1;
+    }
 
-	return 0;
+    return 0;
 }
 
 int server_response_file (struct server_client *client, int fd, size_t content_length)
 {
-	int err;
+    int err;
     
     if (content_length) {
         log_debug("using content-length");
@@ -603,39 +603,39 @@ int server_response_file (struct server_client *client, int fd, size_t content_l
         if ((err = server_response_header(client, "Connection", "close")))
             return err;
     }
-	
-	// headers
-	if ((err = server_response_headers(client))) {
-		return err;
-	}
+    
+    // headers
+    if ((err = server_response_headers(client))) {
+        return err;
+    }
 
-	// body
-	if (client->response.body) {
-		log_fatal("attempting to re-send body");
-		return -1;
-	}
+    // body
+    if (client->response.body) {
+        log_fatal("attempting to re-send body");
+        return -1;
+    }
 
-	client->response.body = true;
+    client->response.body = true;
 
-	if (http_write_file(client->http, fd, content_length)) {
-		log_error("http_write_file");
-		return -1;
-	}
+    if (http_write_file(client->http, fd, content_length)) {
+        log_error("http_write_file");
+        return -1;
+    }
 
-	return 0;
+    return 0;
 }
 
 int server_response_print (struct server_client *client, const char *fmt, ...)
 {
-	va_list args;
-	int err = 0;
+    va_list args;
+    int err = 0;
 
-	if (!client->response.status) {
-		log_fatal("attempting to send response body without status");
-		return -1;
-	}
+    if (!client->response.status) {
+        log_fatal("attempting to send response body without status");
+        return -1;
+    }
 
-	if (!client->response.headers) {
+    if (!client->response.headers) {
         // use chunked transfer-encoding for HTTP/1.1, and close connection for HTTP/1.0
         if (client->request.http11) {
             log_debug("using chunked transfer-encoding");
@@ -652,61 +652,61 @@ int server_response_print (struct server_client *client, const char *fmt, ...)
             err |= server_response_header(client, "Connection", "close");
             err |= server_response_headers(client);
         }
-	}
+    }
 
-	if (err)
-		return err;
-	
-	// body
-	client->response.body = true;
+    if (err)
+        return err;
+    
+    // body
+    client->response.body = true;
 
-	va_start(args, fmt);
+    va_start(args, fmt);
     if (client->response.chunked) {
         err = http_vprint_chunk(client->http, fmt, args);
     } else {
         err = http_vwrite(client->http, fmt, args);
     }
-	va_end(args);
+    va_end(args);
 
-	if (err) {
-		log_warning("http_write");
-		return err;
-	}
+    if (err) {
+        log_warning("http_write");
+        return err;
+    }
 
-	return 0;
+    return 0;
 }
 
 int server_response_redirect (struct server_client *client, const char *host, const char *fmt, ...)
 {
-	char path[HTTP_PATH_MAX];
-	int ret;
-	va_list args;
+    char path[HTTP_PATH_MAX];
+    int ret;
+    va_list args;
 
-	va_start(args, fmt);
-	ret = vsnprintf(path, sizeof(path), fmt, args);
-	va_end(args);
+    va_start(args, fmt);
+    ret = vsnprintf(path, sizeof(path), fmt, args);
+    va_end(args);
 
-	if (ret < 0) {
-		log_perror("vsnprintf");
-		return -1;
-	} else if (ret >= sizeof(path)) {
-		log_warning("truncated redirect path: %d", ret);
-		return -1;
-	}
+    if (ret < 0) {
+        log_perror("vsnprintf");
+        return -1;
+    } else if (ret >= sizeof(path)) {
+        log_warning("truncated redirect path: %d", ret);
+        return -1;
+    }
 
-	// auto
-	if (!host) {
-		host = client->request.url.host;
-	}
+    // auto
+    if (!host) {
+        host = client->request.url.host;
+    }
 
-	if ((
-				server_response(client, 301, NULL)
-			||	server_response_header(client, "Location", "http://%s/%s", host, path)
-			||	server_response_headers(client)
-	))
-		return -1;
+    if ((
+                server_response(client, 301, NULL)
+            ||    server_response_header(client, "Location", "http://%s/%s", host, path)
+            ||    server_response_headers(client)
+    ))
+        return -1;
 
-	return 0;
+    return 0;
 }
 
 int server_response_error (struct server_client *client, enum http_status status, const char *reason, const char *detail)
@@ -714,7 +714,7 @@ int server_response_error (struct server_client *client, enum http_status status
     int err = 0;
 
     if (!reason)
-		reason = http_status_str(status);
+        reason = http_status_str(status);
 
     err |= server_response(client, status, reason);
     err |= server_response_header(client, "Content-Type", "text/html");
@@ -736,15 +736,15 @@ int server_response_error (struct server_client *client, enum http_status status
  */
 int server_client_request (struct server *server, struct server_client *client)
 {
-	struct server_handler *handler = NULL;
-	enum http_status status = 0;
-	int err;
+    struct server_handler *handler = NULL;
+    enum http_status status = 0;
+    int err;
 
-	// request
-	if ((err = server_request(client)) < 0) {
-		goto error;
+    // request
+    if ((err = server_request(client)) < 0) {
+        goto error;
 
-	} else if (err == 1) {
+    } else if (err == 1) {
         // EOF
         return 1;
 
@@ -752,18 +752,18 @@ int server_client_request (struct server *server, struct server_client *client)
         goto error;
     } 
 
-	// handler 
-	if ((err = server_lookup_handler(server, client->request.method, client->request.url.path, &handler)) < 0) {
-		goto error;
+    // handler 
+    if ((err = server_lookup_handler(server, client->request.method, client->request.url.path, &handler)) < 0) {
+        goto error;
 
-	} else if (err) {
-		handler = NULL;
+    } else if (err) {
+        handler = NULL;
 
-	} else {
-		if ((err = handler->request(handler, client, client->request.method, &client->request.url))) {
+    } else {
+        if ((err = handler->request(handler, client, client->request.method, &client->request.url))) {
             log_warning("handler failed with %d", err);
         }
-	}
+    }
 
     // headers?
     if (!client->request.headers) {
@@ -788,47 +788,47 @@ int server_client_request (struct server *server, struct server_client *client)
         client->response.close = true;
     }
 
-error:	
-	// response
-	if (err < 0) {
+error:    
+    // response
+    if (err < 0) {
         // sock send/recv error or timeout, or other internal error
         // abort without response
         log_warning("aborting request without response");
         return err;
 
-	} else if (err > 0) {
-		status = err;
+    } else if (err > 0) {
+        status = err;
         log_debug("failing request with response %d", status);
 
-	} else if (client->response.status) {
-		status = 0;
+    } else if (client->response.status) {
+        status = 0;
         log_debug("request handler sent response %d", client->response.status);
 
-	} else {
-		log_warning("status not sent, defaulting to 200");
-		status = 200;
-	}
-	
+    } else {
+        log_warning("status not sent, defaulting to 200");
+        status = 200;
+    }
+    
     // response line
-	if (status && client->response.status) {
-		log_warning("status %u already sent, should be %u", client->response.status, status);
+    if (status && client->response.status) {
+        log_warning("status %u already sent, should be %u", client->response.status, status);
 
-	} else if (status) {
+    } else if (status) {
         // send full response
-		if (server_response_error(client, status, NULL, NULL)) {
-			log_warning("failed to send response status");
-			err = -1;
-		}
-	}
-	
-	// headers
-	if (!client->response.headers) {
+        if (server_response_error(client, status, NULL, NULL)) {
+            log_warning("failed to send response status");
+            err = -1;
+        }
+    }
+    
+    // headers
+    if (!client->response.headers) {
         // end-of-headers
-		if (server_response_headers(client)) {
-			log_warning("failed to end response headers");
-			err = -1;
-		}
-	}
+        if (server_response_headers(client)) {
+            log_warning("failed to end response headers");
+            err = -1;
+        }
+    }
 
     // entity
     if (client->response.chunked) {
@@ -847,7 +847,7 @@ error:
         return 0;
     }
 
-	return err;
+    return err;
 }
 
 /*
@@ -880,8 +880,8 @@ void server_client_task (void *ctx)
     }
 
 error:
-	if (client->http)
-		http_destroy(client->http);
+    if (client->http)
+        http_destroy(client->http);
     
     // TODO: clean close vs reset?
     tcp_destroy(client->tcp);
@@ -891,21 +891,21 @@ error:
 
 int server_client (struct server *server, struct tcp *tcp)
 {
-	struct server_client *client;
+    struct server_client *client;
     int err = 0;
 
     if (!(client = calloc(1, sizeof(*client)))) {
         log_perror("calloc");
-		goto error;
+        goto error;
     }
 
     client->server = server;
     client->tcp = tcp;
 
-	if ((err = http_create(&client->http, tcp_read_stream(tcp), tcp_write_stream(tcp)))) {
-		log_perror("http_create");
-		goto error;
-	}
+    if ((err = http_create(&client->http, tcp_read_stream(tcp), tcp_write_stream(tcp)))) {
+        log_perror("http_create");
+        goto error;
+    }
 
     if ((err = event_start(server->event_main, server_client_task, client))) {
         log_perror("event_start");
@@ -985,7 +985,7 @@ void server_destroy (struct server *server)
 {
     // TODO: listens
 
-	// handlers
+    // handlers
     struct server_handler_item *h;
 
     while ((h = TAILQ_FIRST(&server->handlers))) {
@@ -1003,5 +1003,5 @@ void server_destroy (struct server *server)
         free(sh);
     }
 
-	free(server);
+    free(server);
 }

@@ -152,7 +152,7 @@ int _stream_read (struct stream *stream)
         return err;
     }
 
-	if (!size) {
+    if (!size) {
         log_debug("eof");
         return 1;
     }
@@ -162,7 +162,7 @@ int _stream_read (struct stream *stream)
         return -1;
     }
 
-	stream_read_mark(stream, size);
+    stream_read_mark(stream, size);
 
     return 0;
 }
@@ -294,9 +294,9 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep)
     while (stream->length < stream->offset + *sizep) {
         if ((err = _stream_read(stream)) < 0)
             return err;
-		
-		if (err)
-			break;
+        
+        if (err)
+            break;
     }
 
     *bufp = stream->buf + stream->offset;
@@ -308,9 +308,9 @@ int stream_read (struct stream *stream, char **bufp, size_t *sizep)
         // have partial requested size, or however much available
         *sizep = stream->length - stream->offset;
     } else {
-		// EOF
-		return 1;
-	}
+        // EOF
+        return 1;
+    }
 
     // consumed
     stream->offset += *sizep;
@@ -339,7 +339,7 @@ int stream_read_line (struct stream *stream, char **linep)
         }
 
         // needs moar bytez in mah buffers
-		// XXX: should we return the last line on EOF, or expect a trailing \r\n?
+        // XXX: should we return the last line on EOF, or expect a trailing \r\n?
         if ((err = _stream_read(stream)))
             return err;
     }

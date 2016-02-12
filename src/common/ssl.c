@@ -32,7 +32,7 @@ struct ssl {
 
     int sock;
     SSL *SSL;
-	
+    
     struct stream *read, *write;
 };
 
@@ -127,10 +127,10 @@ int ssl_connect (struct ssl *ssl, const char *host, const char *port)
     int err;
 
     // TODO: event_main
-	if ((err = tcp_connect(NULL, &ssl->sock, host, port))) {
-		log_perror("tcp_connect %s:%s", host, port);
+    if ((err = tcp_connect(NULL, &ssl->sock, host, port))) {
+        log_perror("tcp_connect %s:%s", host, port);
         return err;
-	}
+    }
 
     if (SSL_set_fd(ssl->SSL, ssl->sock) != 1) {
         log_error("SSL_set_fd: %s", ssl_error_str());

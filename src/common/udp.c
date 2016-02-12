@@ -56,42 +56,42 @@ error:
 
 int udp_connect (struct event_main *event_main, struct udp **udpp, const char *host, const char *port)
 {
-	int err;
-	struct addrinfo hints = {
-		.ai_flags		= 0,
-		.ai_family		= AF_UNSPEC,
-		.ai_socktype	= SOCK_DGRAM,
-		.ai_protocol	= 0,
-	};
-	struct addrinfo *addrs, *addr;
-	int sock = -1;
+    int err;
+    struct addrinfo hints = {
+        .ai_flags        = 0,
+        .ai_family        = AF_UNSPEC,
+        .ai_socktype    = SOCK_DGRAM,
+        .ai_protocol    = 0,
+    };
+    struct addrinfo *addrs, *addr;
+    int sock = -1;
 
-	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
-		log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
-		return -1;
-	}
+    if ((err = getaddrinfo(host, port, &hints, &addrs))) {
+        log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
+        return -1;
+    }
 
-	for (addr = addrs; addr; addr = addr->ai_next) {
-		if ((sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
-			log_pwarning("socket(%d, %d, %d)", addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-			continue;
-		}
+    for (addr = addrs; addr; addr = addr->ai_next) {
+        if ((sock = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
+            log_pwarning("socket(%d, %d, %d)", addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+            continue;
+        }
 
-		log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
+        log_info("%s...", sockaddr_str(addr->ai_addr, addr->ai_addrlen));
 
-		if ((err = connect(sock, addr->ai_addr, addr->ai_addrlen)) < 0) {
-			log_pwarning("connect");
-			close(sock);
-			sock = -1;
-			continue;
-		}
+        if ((err = connect(sock, addr->ai_addr, addr->ai_addrlen)) < 0) {
+            log_pwarning("connect");
+            close(sock);
+            sock = -1;
+            continue;
+        }
 
-		log_info("%s <- %s", sockpeer_str(sock), sockname_str(sock));
+        log_info("%s <- %s", sockpeer_str(sock), sockname_str(sock));
 
-		break;
-	}
+        break;
+    }
 
-	freeaddrinfo(addrs);
+    freeaddrinfo(addrs);
 
     if (sock < 0)
         return -1;

@@ -6,8 +6,8 @@
 #include <string.h>
 
 struct server_dns {
-	/* Embed */
-	struct server_handler handler;
+    /* Embed */
+    struct server_handler handler;
 
     /* Shared across requests */
     struct dns *dns;
@@ -107,7 +107,7 @@ int server_dns_lookup (struct dns *dns, struct server_client *client, const char
 
 int server_dns_request (struct server_handler *handler, struct server_client *client, const char *method, const struct url *url)
 {
-	struct server_dns *s = (void *) handler;
+    struct server_dns *s = (void *) handler;
     const char *name = NULL, *type = NULL, *server = NULL;
     int err;
 
@@ -170,18 +170,18 @@ int server_dns_request (struct server_handler *handler, struct server_client *cl
 
 int server_dns_create (struct server_dns **sp, struct server *server, const char *path, const char *resolver)
 {
-	struct server_dns *s;
+    struct server_dns *s;
 
-	if (!(s = calloc(1, sizeof(*s)))) {
-		log_perror("calloc");
-		return -1;
-	}
+    if (!(s = calloc(1, sizeof(*s)))) {
+        log_perror("calloc");
+        return -1;
+    }
 
     s->handler.request = server_dns_request;
 
     log_info("GET %s", path);
 
-	if (server_add_handler(server, "GET", path, &s->handler)) {
+    if (server_add_handler(server, "GET", path, &s->handler)) {
         log_error("server_add_handler: GET");
         goto error;
     }
@@ -196,8 +196,8 @@ int server_dns_create (struct server_dns **sp, struct server *server, const char
         goto error;
     }
 
-	*sp = s;
-	return 0;
+    *sp = s;
+    return 0;
 
 error:
     free(s);
@@ -207,5 +207,5 @@ error:
 void server_dns_destroy (struct server_dns *s)
 {
     dns_destroy(s->dns);
-	free(s);
+    free(s);
 }

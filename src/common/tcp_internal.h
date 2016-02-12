@@ -5,13 +5,13 @@
 #include "common/stream.h"
 
 struct tcp {
-	int sock;
-	
-	struct event *event;
+    int sock;
     
-	struct timeval read_timeout, write_timeout;
+    struct event *event;
+    
+    struct timeval read_timeout, write_timeout;
 
-	struct stream *read, *write;
+    struct stream *read, *write;
 };
 
 /*

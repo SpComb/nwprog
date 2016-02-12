@@ -20,13 +20,13 @@ enum opts {
 };
 
 static const struct option long_options[] = {
-	{ "help",		0, 	NULL,		'h' },
-	{ "quiet",		0, 	NULL,		'q' },
-	{ "verbose",	0,	NULL,		'v'	},
-	{ "debug",		0,	NULL,		'd'	},
+    { "help",        0,     NULL,        'h' },
+    { "quiet",        0,     NULL,        'q' },
+    { "verbose",    0,    NULL,        'v'    },
+    { "debug",        0,    NULL,        'd'    },
 
     { "resolver",   1,  NULL,       'R' },
-	{ }
+    { }
 };
 
 struct dns_task {
@@ -36,22 +36,22 @@ struct dns_task {
 };
 
 void help (const char *argv0) {
-	printf(
-			"Usage: %s [options] <host> [<host>] [...]\n"
-			"\n"
-			"   -h --help          Display this text\n"
-			"   -q --quiet         Less output\n"
-			"   -v --verbose       More output\n"
-			"   -d --debug         Debug output\n"
+    printf(
+            "Usage: %s [options] <host> [<host>] [...]\n"
+            "\n"
+            "   -h --help          Display this text\n"
+            "   -q --quiet         Less output\n"
+            "   -v --verbose       More output\n"
+            "   -d --debug         Debug output\n"
             "\n"
             "   -R --resolver       DNS resolver address\n"
-			"\n"
-			"Examples:\n"
-			"\n"
-			"   %s example.com\n"
-			"   %s example.com example.net\n"
-			"\n"
-	, argv0, argv0);
+            "\n"
+            "Examples:\n"
+            "\n"
+            "   %s example.com\n"
+            "   %s example.com example.net\n"
+            "\n"
+    , argv0, argv0);
 }
 
 void dns (void *ctx)
@@ -120,45 +120,45 @@ void dns (void *ctx)
 
 int main (int argc, char **argv)
 {
-	int opt;
-	enum log_level log_level = LOG_LEVEL;
-	int err = 0;
+    int opt;
+    enum log_level log_level = LOG_LEVEL;
+    int err = 0;
 
     struct event_main *event_main;
     struct options options = {
         .resolver   = "localhost",
     };
 
-	while ((opt = getopt_long(argc, argv, "hqvdR:", long_options, NULL)) >= 0) {
-		switch (opt) {
-			case 'h':
-				help(argv[0]);
-				return 0;
+    while ((opt = getopt_long(argc, argv, "hqvdR:", long_options, NULL)) >= 0) {
+        switch (opt) {
+            case 'h':
+                help(argv[0]);
+                return 0;
 
-			case 'q':
-				log_level = LOG_ERROR;
-				break;
+            case 'q':
+                log_level = LOG_ERROR;
+                break;
 
-			case 'v':
-				log_level = LOG_INFO;
-				break;
+            case 'v':
+                log_level = LOG_INFO;
+                break;
 
-			case 'd':
-				log_level = LOG_DEBUG;
-				break;
+            case 'd':
+                log_level = LOG_DEBUG;
+                break;
 
             case 'R':
                 options.resolver = optarg;
                 break;
 
             default:
-				help(argv[0]);
-				return 1;
-		}
-	}
+                help(argv[0]);
+                return 1;
+        }
+    }
 
-	// apply
-	log_set_level(log_level);
+    // apply
+    log_set_level(log_level);
 
     if ((err = event_main_create(&event_main))) {
         log_fatal("event_main_create");
@@ -170,7 +170,7 @@ int main (int argc, char **argv)
         goto error;
     }
 
-	while (optind < argc && !err) {
+    while (optind < argc && !err) {
         struct dns_task task = {
             .options    = &options,
             .arg        = argv[optind++],
@@ -180,7 +180,7 @@ int main (int argc, char **argv)
         if ((err = event_start(event_main, dns, &task))) {
             log_fatal("event_start: %s", task.arg);
         }
-	}
+    }
 
     // mainloop
     if ((err = event_main_run(event_main))) {
@@ -191,5 +191,5 @@ error:
     if (options.dns)
         dns_destroy(options.dns);
 
-	return err;
+    return err;
 }

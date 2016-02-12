@@ -67,24 +67,24 @@ error:
 
 int tcp_connect (struct event_main *event_main, int *sockp, const char *host, const char *port)
 {
-	int err;
-	struct addrinfo hints = {
-		.ai_flags		= 0,
-		.ai_family		= AF_UNSPEC,
-		.ai_socktype	= SOCK_STREAM,
-		.ai_protocol	= 0,
-	};
-	struct addrinfo *addrs, *addr;
+    int err;
+    struct addrinfo hints = {
+        .ai_flags        = 0,
+        .ai_family        = AF_UNSPEC,
+        .ai_socktype    = SOCK_STREAM,
+        .ai_protocol    = 0,
+    };
+    struct addrinfo *addrs, *addr;
 
-	if ((err = getaddrinfo(host, port, &hints, &addrs))) {
-		log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
-		return -1;
-	}
+    if ((err = getaddrinfo(host, port, &hints, &addrs))) {
+        log_perror("getaddrinfo %s:%s: %s", host, port, gai_strerror(err));
+        return -1;
+    }
 
     // pre-set err in case of empty addrs
     err = 1;
 
-	for (addr = addrs; addr; addr = addr->ai_next) {
+    for (addr = addrs; addr; addr = addr->ai_next) {
         log_info("%s:%s: %s...", host, port, sockaddr_str(addr->ai_addr, addr->ai_addrlen));
 
         if ((err = tcp_connect_async(event_main, sockp, addr))) {
@@ -95,18 +95,18 @@ int tcp_connect (struct event_main *event_main, int *sockp, const char *host, co
         log_info("%s:%s: %s <- %s", host, port, sockpeer_str(*sockp), sockname_str(*sockp));
 
         break;
-	}
+    }
 
-	freeaddrinfo(addrs);
+    freeaddrinfo(addrs);
 
     return err;
 }
 
 int tcp_client (struct event_main *event_main, struct tcp **tcpp, const char *host, const char *port)
 {
-	int sock;
+    int sock;
 
-	if (tcp_connect(event_main, &sock, host, port)) {
+    if (tcp_connect(event_main, &sock, host, port)) {
         log_pwarning("tcp_create: %s:%s", host, port);
         return -1;
     }

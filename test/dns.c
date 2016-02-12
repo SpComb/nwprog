@@ -84,14 +84,14 @@ int main (int argc, char **argv)
 {
     int err = 0;
 
-	log_set_level(LOG_DEBUG);
-	
-	// skip argv0
-	argv++;
+    log_set_level(LOG_DEBUG);
+    
+    // skip argv0
+    argv++;
 
     for (struct pack_name_test *test = pack_name_tests; test->pack || test->unpack; test++) {
         err |= test_pack_name(test);
     }
 
-	return err;
+    return err;
 }

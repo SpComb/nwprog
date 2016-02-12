@@ -21,7 +21,7 @@ struct server_handler {
     struct event_main *event_main;
 
     /* Handler implementation */
-	int (*request)(struct server_handler *handler, struct server_client *client, const char *method, const struct url *url);
+    int (*request)(struct server_handler *handler, struct server_client *client, const char *method, const struct url *url);
 };
 
 /*
@@ -105,7 +105,7 @@ int server_response (struct server_client *client, enum http_status status, cons
  * Send response header.
  */
 int server_response_header (struct server_client *client, const char *name, const char *fmt, ...)
-	__attribute((format (printf, 3, 4)));
+    __attribute((format (printf, 3, 4)));
 
 /*
  * Send response body from file.
@@ -118,7 +118,7 @@ int server_response_file (struct server_client *client, int fd, size_t content_l
  * The response is sent without a Content-Length, and closed.
  */
 int server_response_print (struct server_client *client, const char *fmt, ...)
-	__attribute((format (printf, 2, 3)));
+    __attribute((format (printf, 2, 3)));
 
 /*
  * Send a complete HTTP 301 redirect, using the given host and formatted path.

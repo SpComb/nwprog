@@ -8,8 +8,8 @@
 #include <unistd.h>
 
 struct options {
-	const char *get;
-	const char *put;
+    const char *get;
+    const char *put;
     const char *post;
     const char *iam;
     enum http_version http_version;
@@ -28,45 +28,45 @@ enum opts {
 };
 
 static const struct option long_options[] = {
-	{ "help",		0, 	NULL,		'h' },
-	{ "quiet",		0, 	NULL,		'q' },
-	{ "verbose",	0,	NULL,		'v'	},
-	{ "debug",		0,	NULL,		'd'	},
-	{ "put",		1,	NULL,		'P' },
+    { "help",        0,     NULL,        'h' },
+    { "quiet",        0,     NULL,        'q' },
+    { "verbose",    0,    NULL,        'v'    },
+    { "debug",        0,    NULL,        'd'    },
+    { "put",        1,    NULL,        'P' },
     { "post",       1,  NULL,       'F' },
     { "http-11",    0,  NULL,       OPT_HTTP_11     },
     { "parallel",   0,  NULL,       'j' },
-	{ }
+    { }
 };
 
 void help (const char *argv0) {
-	printf(
-			"Usage: %s [options] <url> [<url>] [...]\n"
-			"\n"
-			"   -h --help               Display this text\n"
-			"   -q --quiet              Less output\n"
-			"   -v --verbose            More output\n"
-			"   -d --debug              Debug output\n"
-			"\n"
-			"   -G --get=file           GET to file\n"
-			"   -P --put=file           PUT from file\n"
+    printf(
+            "Usage: %s [options] <url> [<url>] [...]\n"
+            "\n"
+            "   -h --help               Display this text\n"
+            "   -q --quiet              Less output\n"
+            "   -v --verbose            More output\n"
+            "   -d --debug              Debug output\n"
+            "\n"
+            "   -G --get=file           GET to file\n"
+            "   -P --put=file           PUT from file\n"
             "   -F --post=form-data     POST form data from string\n"
             "\n"
-			"   -I --iam=username       Send Iam header\n"
+            "   -I --iam=username       Send Iam header\n"
             "      --http-11            Send HTTP/1.1 requests\n"
             "   -j --parallel           Perform requests in parallel\n"
-			"\n"
-			"Examples:\n"
-			"\n"
-			"   %s -q http://www.ietf.org/rfc/rfc2616.txt\n"
-			"   %s -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt\n"
-			"   %s -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt\n"
+            "\n"
+            "Examples:\n"
+            "\n"
+            "   %s -q http://www.ietf.org/rfc/rfc2616.txt\n"
+            "   %s -G rfc2616.txt http://www.ietf.org/rfc/rfc2616.txt\n"
+            "   %s -P test.txt http://nwprog1.netlab.hut.fi:3000/test.txt\n"
             "   %s -F 'name=example.com&type=A' http://localhost:8080/dns-query/\n"
             "\n"
             "Use of HTTP/1.1 persistent connections:\n"
             "\n"
             "   %s --http-11 http://example.com/foo /bar\n"
-			"\n"
+            "\n"
             "Use of parallel requests:\n"
             "\n"
             "   %s -j http://example.com/foo http://example.com/bar\n"
@@ -74,7 +74,7 @@ void help (const char *argv0) {
             "   Note that this is of fairly limited use, as the responses will be\n"
             "   intermixed arbitrarily. No inter/intra -request ordering is guaranteed.\n"
             "\n"
-	, argv0, argv0, argv0, argv0, argv0, argv0, argv0);
+    , argv0, argv0, argv0, argv0, argv0, argv0, argv0);
 }
 
 struct client_task {
@@ -87,26 +87,26 @@ void client (void *ctx)
 {
     struct client_task *task = ctx;
     const struct options *options = task->options;
-	struct urlbuf urlbuf;
-	struct client *client;
-	FILE *get_file = stdout, *put_file = NULL;
-	int err = 0;
+    struct urlbuf urlbuf;
+    struct client *client;
+    FILE *get_file = stdout, *put_file = NULL;
+    int err = 0;
 
-	if (urlbuf_parse(&urlbuf, task->arg)) {
-		log_fatal("invalid url: %s", task->arg);
-		return 1;
-	}
+    if (urlbuf_parse(&urlbuf, task->arg)) {
+        log_fatal("invalid url: %s", task->arg);
+        return 1;
+    }
 
-	// handle empty path
-	if (!urlbuf.url.path) {
-		urlbuf.url.path = "";
-	}
+    // handle empty path
+    if (!urlbuf.url.path) {
+        urlbuf.url.path = "";
+    }
 
     // setup client
-	if (client_create(options->event_main, &client)) {
-		log_fatal("failed to initialize client");
+    if (client_create(options->event_main, &client)) {
+        log_fatal("failed to initialize client");
         return 2;
-	}
+    }
 #ifdef WITH_SSL
     if (client_set_ssl(client, options->ssl_main)) {
         log_fatal("failed to initialize client ssl");
@@ -121,11 +121,11 @@ void client (void *ctx)
         goto error;
     }
 
-	if (options->iam && client_add_header(client, "Iam", options->iam)) {
-		log_fatal("failed to set client Iam header");
-		err = 2;
-		goto error;
-	}
+    if (options->iam && client_add_header(client, "Iam", options->iam)) {
+        log_fatal("failed to set client Iam header");
+        err = 2;
+        goto error;
+    }
 
     // TODO: support persistent connections with multiple requests
     //if (urlbuf.url.host && *urlbuf.url.host) {
@@ -136,7 +136,7 @@ void client (void *ctx)
         }
     //}
 
-	if (options->get) {
+    if (options->get) {
         if (!(get_file = fopen(options->get, "w"))) {
             log_error("fopen %s", options->get);
             log_fatal("failed to open --get file for writing");
@@ -162,35 +162,35 @@ void client (void *ctx)
         }
     }
 
-	if (options->put && !(put_file = fopen(options->put, "r"))) {
-		log_error("fopen %s", options->put);
-		log_fatal("failed to open --put file for reading");
+    if (options->put && !(put_file = fopen(options->put, "r"))) {
+        log_error("fopen %s", options->put);
+        log_fatal("failed to open --put file for reading");
         err = 3;
         goto error;
-	}
+    }
 
-	
-	if (put_file) {
-		if ((err = client_put(client, &urlbuf.url, put_file)) < 0) {
-			log_fatal("PUT failed: %s", task->arg);
+    
+    if (put_file) {
+        if ((err = client_put(client, &urlbuf.url, put_file)) < 0) {
+            log_fatal("PUT failed: %s", task->arg);
             err = 3;
             goto error;
-		}
+        }
 
     } else if (options->post) {
-		if ((err = client_post(client, &urlbuf.url, options->post, "application/x-www-form-urlencoded")) < 0) {
-			log_fatal("POST failed: %s", task->arg);
+        if ((err = client_post(client, &urlbuf.url, options->post, "application/x-www-form-urlencoded")) < 0) {
+            log_fatal("POST failed: %s", task->arg);
             err = 3;
             goto error;
-		}
+        }
 
-	} else {
-		if ((err = client_get(client, &urlbuf.url)) < 0) {
-			log_fatal("GET failed: %s", task->arg);
+    } else {
+        if ((err = client_get(client, &urlbuf.url)) < 0) {
+            log_fatal("GET failed: %s", task->arg);
             err = 3;
             goto error;
-		}
-	}
+        }
+    }
 
     if (err >= 200 && err < 300) {
         log_debug("Server errurned 2xx response: %d", err);
@@ -220,9 +220,9 @@ error:
 
 int main (int argc, char **argv)
 {
-	int opt;
-	enum log_level log_level = LOG_LEVEL;
-	int err = 0;
+    int opt;
+    enum log_level log_level = LOG_LEVEL;
+    int err = 0;
 
     struct options options = {
         .get    = NULL,
@@ -233,31 +233,31 @@ int main (int argc, char **argv)
         .http_version   = HTTP_10,
     };
 
-	while ((opt = getopt_long(argc, argv, "hqvdG:P:I:jF:", long_options, NULL)) >= 0) {
-		switch (opt) {
-			case 'h':
-				help(argv[0]);
-				return 0;
-			
-			case 'q':
-				log_level = LOG_ERROR;
-				break;
+    while ((opt = getopt_long(argc, argv, "hqvdG:P:I:jF:", long_options, NULL)) >= 0) {
+        switch (opt) {
+            case 'h':
+                help(argv[0]);
+                return 0;
+            
+            case 'q':
+                log_level = LOG_ERROR;
+                break;
 
-			case 'v':
-				log_level = LOG_INFO;
-				break;
+            case 'v':
+                log_level = LOG_INFO;
+                break;
 
-			case 'd':
-				log_level = LOG_DEBUG;
-				break;
-			
-			case 'G':
-				options.get	= optarg;
-				break;
+            case 'd':
+                log_level = LOG_DEBUG;
+                break;
+            
+            case 'G':
+                options.get    = optarg;
+                break;
 
-			case 'P':
-				options.put = optarg;
-				break;
+            case 'P':
+                options.put = optarg;
+                break;
             
             case 'I':
                 options.iam = optarg;
@@ -275,14 +275,14 @@ int main (int argc, char **argv)
                 options.post = optarg;
                 break;
 
-			default:
-				help(argv[0]);
-				return 1;
-		}
-	}
+            default:
+                help(argv[0]);
+                return 1;
+        }
+    }
 
-	// apply
-	log_set_level(log_level);
+    // apply
+    log_set_level(log_level);
     
     if (options.parallel) {
         if ((err = event_main_create(&options.event_main))) {
@@ -298,7 +298,7 @@ int main (int argc, char **argv)
     }
 #endif
 
-	while (optind < argc && !err) {
+    while (optind < argc && !err) {
         struct client_task task = {
             .options    = &options,
             .arg        = argv[optind++],
@@ -313,7 +313,7 @@ int main (int argc, char **argv)
             // non-event'd task
             client(&task);
         }
-	}
+    }
     
     if (options.parallel) {
         if ((err = event_main_run(options.event_main))) {
@@ -323,5 +323,5 @@ int main (int argc, char **argv)
     }
 
 error:
-	return err;
+    return err;
 }
